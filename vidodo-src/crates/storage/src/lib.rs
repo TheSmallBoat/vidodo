@@ -6,6 +6,7 @@ use std::path::{Path, PathBuf};
 use std::time::{SystemTime, UNIX_EPOCH};
 
 use rusqlite::{Connection, params};
+use serde::Deserialize;
 use serde::Serialize;
 use serde::de::DeserializeOwned;
 use sha2::{Digest, Sha256};
@@ -17,6 +18,15 @@ use vidodo_ir::{
 const BEAT_TRACK_ANALYZER: &str = "beat_track";
 const BEAT_TRACK_ANALYZER_VERSION: &str = "0.1.0";
 const BEAT_TRACK_PARAMS: &str = "probe=v1;window_ms=10;min_gap_ms=160;supported=wav/pcm_s16le";
+const ASSET_PACK_MANIFEST_FILE: &str = "vidodo-asset-pack.json";
+
+#[derive(Debug, Clone, Default, PartialEq, Eq, Deserialize)]
+struct AssetPackManifest {
+    #[serde(default)]
+    asset_namespace: Option<String>,
+    #[serde(default)]
+    asset_id_overrides: BTreeMap<String, String>,
+}
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 struct WavFormatSummary {
@@ -48,12 +58,32 @@ pub struct AssetIngestRequest {
     pub source: PathBuf,
     pub declared_kind: String,
     pub tags: Vec<String>,
+    pub asset_namespace: Option<String>,
+    pub asset_id_overrides: BTreeMap<String, String>,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Default)]
 pub struct AssetQuery {
     pub asset_kind: Option<String>,
     pub tag: Option<String>,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct CompileAssetSelection {
+    pub eligible_assets: Vec<AssetRecord>,
+    pub published_asset_count: usize,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+struct StagedCandidate {
+    candidate: IngestionCandidate,
+    source_path: PathBuf,
+    relative_path: String,
+    file_name: String,
+    extension: String,
+    bytes: Vec<u8>,
+    content_hash: String,
+    asset_id: String,
 }
 
 impl ArtifactLayout {
@@ -264,10 +294,20 @@ pub fn ingest_assets(
     );
 
     let mut records = load_asset_records(layout).map_err(diagnostic_from_string)?;
-    let mut record_by_hash = BTreeMap::new();
+    let staged_candidates = stage_candidates(candidates, request)?;
+    let naming_diagnostics = validate_asset_naming_policy(&staged_candidates, &records);
+    if !naming_diagnostics.is_empty() {
+        return Err(naming_diagnostics);
+    }
+
+    let candidates =
+        staged_candidates.iter().map(|staged| staged.candidate.clone()).collect::<Vec<_>>();
+    let mut record_by_identity = BTreeMap::new();
     for record in &records {
-        record_by_hash
-            .insert(asset_hash_key(&record.asset_kind, &record.content_hash), record.clone());
+        record_by_identity.insert(
+            asset_identity_key(&record.asset_kind, &record.asset_id, &record.content_hash),
+            record.clone(),
+        );
     }
 
     let mut published = Vec::new();
@@ -275,18 +315,12 @@ pub fn ingest_assets(
     let mut analysis_entries = Vec::new();
     let mut reused = 0_u32;
 
-    for candidate in &candidates {
-        let candidate_path = PathBuf::from(&candidate.path);
-        let bytes = fs::read(&candidate_path).map_err(|error| {
-            vec![Diagnostic::error(
-                "AST-003",
-                format!("failed to read {}: {error}", candidate_path.display()),
-            )]
-        })?;
-        let content_hash = content_hash(&bytes);
-        let hash_key = asset_hash_key(&request.declared_kind, &content_hash);
+    for staged in &staged_candidates {
+        let candidate_path = &staged.source_path;
+        let identity_key =
+            asset_identity_key(&request.declared_kind, &staged.asset_id, &staged.content_hash);
 
-        if let Some(existing) = record_by_hash.get(&hash_key) {
+        if let Some(existing) = record_by_identity.get(&identity_key) {
             reused = reused.saturating_add(1);
             let merged = merge_asset_tags(existing, &request.tags);
             upsert_asset(layout, &merged).map_err(diagnostic_from_string)?;
@@ -295,13 +329,7 @@ pub fn ingest_assets(
             continue;
         }
 
-        let asset_id = build_asset_id(&request.declared_kind, &candidate_path, &content_hash);
-        let file_name =
-            candidate_path.file_name().and_then(|name| name.to_str()).unwrap_or("asset.bin");
-        let extension =
-            candidate_path.extension().and_then(|value| value.to_str()).unwrap_or("bin");
-
-        let raw_path = layout.asset_raw_dir().join(&asset_id).join(file_name);
+        let raw_path = layout.asset_raw_dir().join(&staged.asset_id).join(&staged.file_name);
         if let Some(parent) = raw_path.parent() {
             fs::create_dir_all(parent).map_err(|error| {
                 vec![Diagnostic::error(
@@ -310,20 +338,23 @@ pub fn ingest_assets(
                 )]
             })?;
         }
-        fs::copy(&candidate_path, &raw_path).map_err(|error| {
+        fs::write(&raw_path, &staged.bytes).map_err(|error| {
             vec![Diagnostic::error(
                 "AST-005",
                 format!(
-                    "failed to copy {} to {}: {error}",
+                    "failed to stage {} into {}: {error}",
                     candidate_path.display(),
                     raw_path.display()
                 ),
             )]
         })?;
 
-        let normalized_path =
-            layout.asset_normalized_dir().join(format!("{}.{}", slug(&asset_id), extension));
-        fs::copy(&candidate_path, &normalized_path).map_err(|error| {
+        let normalized_path = layout.asset_normalized_dir().join(format!(
+            "{}.{}",
+            slug(&staged.asset_id),
+            staged.extension
+        ));
+        fs::write(&normalized_path, &staged.bytes).map_err(|error| {
             vec![Diagnostic::error(
                 "AST-006",
                 format!(
@@ -334,21 +365,30 @@ pub fn ingest_assets(
             )]
         })?;
 
-        let payload = build_beat_track_analysis(&asset_id, &normalized_path, bytes.len() as u64)
-            .map_err(|message| vec![Diagnostic::error("AST-007", message)])?;
+        let payload = build_beat_track_analysis(
+            &staged.asset_id,
+            &normalized_path,
+            staged.bytes.len() as u64,
+        )
+        .map_err(|message| vec![Diagnostic::error("AST-007", message)])?;
         let params_hash = hash_string(BEAT_TRACK_PARAMS);
-        let cache_key =
-            build_cache_key(&content_hash, &request.declared_kind, &payload.probe, &params_hash);
+        let cache_key = build_cache_key(
+            &staged.asset_id,
+            &staged.content_hash,
+            &request.declared_kind,
+            &payload.probe,
+            &params_hash,
+        );
         let result_ref = format!("analysis-{}", short_hash(&cache_key));
         let payload_path = layout.analysis_payload_path(&result_ref);
         write_json(&payload_path, &payload).map_err(diagnostic_from_string)?;
 
         let entry = AnalysisCacheEntry {
             cache_key: cache_key.clone(),
-            asset_id: asset_id.clone(),
+            asset_id: staged.asset_id.clone(),
             analyzer: String::from(BEAT_TRACK_ANALYZER),
             analyzer_version: String::from(BEAT_TRACK_ANALYZER_VERSION),
-            input_fingerprint: content_hash.clone(),
+            input_fingerprint: staged.content_hash.clone(),
             dependency_fingerprint: probe_fingerprint(&payload.probe),
             created_at: unix_timestamp(),
             status: String::from("ready"),
@@ -358,8 +398,11 @@ pub fn ingest_assets(
             .map_err(diagnostic_from_string)?;
 
         let job = AnalysisJob {
-            analysis_job_id: format!("job-{}", short_hash(&format!("{asset_id}:{cache_key}"))),
-            asset_id: asset_id.clone(),
+            analysis_job_id: format!(
+                "job-{}",
+                short_hash(&format!("{}:{cache_key}", staged.asset_id))
+            ),
+            asset_id: staged.asset_id.clone(),
             analyzer: String::from(BEAT_TRACK_ANALYZER),
             analyzer_version: String::from(BEAT_TRACK_ANALYZER_VERSION),
             params_hash,
@@ -371,9 +414,9 @@ pub fn ingest_assets(
             .map_err(diagnostic_from_string)?;
 
         let record = AssetRecord {
-            asset_id: asset_id.clone(),
+            asset_id: staged.asset_id.clone(),
             asset_kind: request.declared_kind.clone(),
-            content_hash: content_hash.clone(),
+            content_hash: staged.content_hash.clone(),
             raw_locator: Some(artifact_ref(layout, &raw_path)),
             normalized_locator: Some(artifact_ref(layout, &normalized_path)),
             status: String::from("published"),
@@ -389,7 +432,7 @@ pub fn ingest_assets(
         published.push(record.clone());
         analysis_jobs.push(job);
         analysis_entries.push(entry);
-        record_by_hash.insert(hash_key, record);
+        record_by_identity.insert(identity_key, record);
     }
 
     records.sort_by(|left, right| left.asset_id.cmp(&right.asset_id));
@@ -438,6 +481,36 @@ pub fn list_assets(
         }
     }
     Ok(assets)
+}
+
+pub fn list_compile_assets(layout: &ArtifactLayout) -> Result<CompileAssetSelection, String> {
+    layout.ensure()?;
+
+    let published_asset_count = query_published_asset_count(layout)?;
+    if published_asset_count == 0 {
+        return Ok(CompileAssetSelection { eligible_assets: Vec::new(), published_asset_count });
+    }
+
+    let records = load_asset_records(layout)?;
+    let mut records_by_id = BTreeMap::new();
+    for record in records {
+        records_by_id.insert(record.asset_id.clone(), record);
+    }
+
+    let eligible_asset_ids = query_compile_asset_ids(layout)?;
+    let mut eligible_assets = Vec::new();
+    for asset_id in eligible_asset_ids {
+        let record = records_by_id.remove(&asset_id).ok_or_else(|| {
+            format!(
+                "compile asset {} is present in registry query results but missing from {}",
+                asset_id,
+                layout.asset_registry_file().display()
+            )
+        })?;
+        eligible_assets.push(record);
+    }
+
+    Ok(CompileAssetSelection { eligible_assets, published_asset_count })
 }
 
 pub fn get_asset(layout: &ArtifactLayout, asset_id: &str) -> Result<Option<AssetRecord>, String> {
@@ -599,6 +672,7 @@ fn scan_candidates(source: &Path, declared_kind: &str) -> Result<Vec<IngestionCa
 fn collect_files(source: &Path) -> Result<Vec<PathBuf>, String> {
     let mut pending = vec![source.to_path_buf()];
     let mut files = Vec::new();
+    let manifest_path = source.join(ASSET_PACK_MANIFEST_FILE);
 
     while let Some(directory) = pending.pop() {
         let mut entries = fs::read_dir(&directory)
@@ -610,6 +684,8 @@ fn collect_files(source: &Path) -> Result<Vec<PathBuf>, String> {
             let path = entry.path();
             if path.is_dir() {
                 pending.push(path);
+            } else if path == manifest_path {
+                continue;
             } else if path.is_file() {
                 files.push(path);
             }
@@ -617,6 +693,283 @@ fn collect_files(source: &Path) -> Result<Vec<PathBuf>, String> {
     }
 
     Ok(files)
+}
+
+fn stage_candidates(
+    candidates: Vec<IngestionCandidate>,
+    request: &AssetIngestRequest,
+) -> Result<Vec<StagedCandidate>, Vec<Diagnostic>> {
+    let manifest = load_asset_pack_manifest(&request.source).map_err(diagnostic_from_string)?;
+    let normalized_namespace = normalize_asset_namespace(
+        request.asset_namespace.as_deref().or(manifest.asset_namespace.as_deref()),
+    )?;
+    let mut merged_overrides = manifest.asset_id_overrides;
+    for (relative_path, asset_id) in &request.asset_id_overrides {
+        merged_overrides.insert(relative_path.clone(), asset_id.clone());
+    }
+    let normalized_overrides =
+        normalize_asset_id_overrides(&request.declared_kind, &merged_overrides)?;
+    let mut staged = Vec::with_capacity(candidates.len());
+    let mut used_override_paths = BTreeSet::new();
+    for candidate in candidates {
+        let source_path = PathBuf::from(&candidate.path);
+        let relative_path = relative_source_path(&request.source, &source_path)
+            .map_err(|message| vec![Diagnostic::error("AST-013", message)])?;
+        let bytes = fs::read(&source_path).map_err(|error| {
+            vec![Diagnostic::error(
+                "AST-003",
+                format!("failed to read {}: {error}", source_path.display()),
+            )]
+        })?;
+        let file_name = source_path
+            .file_name()
+            .and_then(|name| name.to_str())
+            .unwrap_or("asset.bin")
+            .to_string();
+        let extension =
+            source_path.extension().and_then(|value| value.to_str()).unwrap_or("bin").to_string();
+        let content_hash = content_hash(&bytes);
+        let asset_id = if let Some(explicit_asset_id) = normalized_overrides.get(&relative_path) {
+            used_override_paths.insert(relative_path.clone());
+            explicit_asset_id.clone()
+        } else {
+            build_asset_id(&request.declared_kind, &source_path, normalized_namespace.as_deref())
+        };
+
+        staged.push(StagedCandidate {
+            candidate,
+            source_path,
+            relative_path,
+            file_name,
+            extension,
+            bytes,
+            content_hash,
+            asset_id,
+        });
+    }
+
+    let mut diagnostics = Vec::new();
+    for relative_path in normalized_overrides.keys() {
+        if used_override_paths.contains(relative_path) {
+            continue;
+        }
+
+        diagnostics.push(Diagnostic::error(
+            "AST-012",
+            format!(
+                "asset_id override path {} does not match any discovered source under {}",
+                relative_path,
+                request.source.display()
+            ),
+        ));
+    }
+
+    if !diagnostics.is_empty() {
+        return Err(diagnostics);
+    }
+
+    Ok(staged)
+}
+
+fn load_asset_pack_manifest(source_root: &Path) -> Result<AssetPackManifest, String> {
+    let manifest_path = source_root.join(ASSET_PACK_MANIFEST_FILE);
+    if !manifest_path.exists() {
+        return Ok(AssetPackManifest::default());
+    }
+
+    read_json(&manifest_path)
+}
+
+fn normalize_asset_namespace(
+    raw_namespace: Option<&str>,
+) -> Result<Option<String>, Vec<Diagnostic>> {
+    let Some(raw_namespace) = raw_namespace else {
+        return Ok(None);
+    };
+
+    let trimmed = raw_namespace.trim();
+    if trimmed.is_empty() {
+        return Err(vec![Diagnostic::error("AST-010", "asset namespace must not be empty")]);
+    }
+
+    let normalized = slug(trimmed);
+    if !normalized.chars().any(|character| character.is_ascii_alphanumeric()) {
+        return Err(vec![Diagnostic::error(
+            "AST-010",
+            format!(
+                "asset namespace {} must contain at least one alphanumeric character",
+                raw_namespace
+            ),
+        )]);
+    }
+
+    Ok(Some(normalized))
+}
+
+fn normalize_asset_id_overrides(
+    declared_kind: &str,
+    raw_overrides: &BTreeMap<String, String>,
+) -> Result<BTreeMap<String, String>, Vec<Diagnostic>> {
+    let mut normalized = BTreeMap::new();
+    let mut diagnostics = Vec::new();
+    let kind_prefix = declared_kind.replace('_', ".");
+
+    for (raw_relative_path, raw_asset_id) in raw_overrides {
+        let relative_path = normalize_override_path(raw_relative_path);
+        if relative_path.is_empty() {
+            diagnostics
+                .push(Diagnostic::error("AST-011", "asset_id override paths must not be empty"));
+            continue;
+        }
+
+        match canonicalize_asset_id_override(&kind_prefix, raw_asset_id) {
+            Ok(asset_id) => {
+                normalized.insert(relative_path, asset_id);
+            }
+            Err(diagnostic) => diagnostics.push(*diagnostic),
+        }
+    }
+
+    if diagnostics.is_empty() { Ok(normalized) } else { Err(diagnostics) }
+}
+
+fn normalize_override_path(raw_relative_path: &str) -> String {
+    raw_relative_path
+        .trim()
+        .replace('\\', "/")
+        .trim_start_matches("./")
+        .trim_matches('/')
+        .to_string()
+}
+
+fn canonicalize_asset_id_override(
+    kind_prefix: &str,
+    raw_asset_id: &str,
+) -> Result<String, Box<Diagnostic>> {
+    let trimmed = raw_asset_id.trim();
+    if trimmed.is_empty() {
+        return Err(Box::new(Diagnostic::error(
+            "AST-011",
+            "asset_id override values must not be empty",
+        )));
+    }
+
+    let segments = trimmed
+        .split('.')
+        .map(str::trim)
+        .filter(|segment| !segment.is_empty())
+        .map(slug)
+        .collect::<Vec<_>>();
+    if segments.len() < 2 {
+        return Err(Box::new(Diagnostic::error(
+            "AST-011",
+            format!(
+                "asset_id override {} must contain the declared kind prefix and a leaf name",
+                raw_asset_id
+            ),
+        )));
+    }
+
+    let canonical = segments.join(".");
+    let expected_prefix = format!("{kind_prefix}.");
+    if !canonical.starts_with(&expected_prefix) {
+        return Err(Box::new(Diagnostic::error(
+            "AST-011",
+            format!("asset_id override {} must start with {}", raw_asset_id, kind_prefix),
+        )));
+    }
+
+    Ok(canonical)
+}
+
+fn relative_source_path(source_root: &Path, source_path: &Path) -> Result<String, String> {
+    let relative = source_path.strip_prefix(source_root).map_err(|error| {
+        format!(
+            "candidate {} is not under source root {}: {error}",
+            source_path.display(),
+            source_root.display()
+        )
+    })?;
+
+    Ok(relative.to_string_lossy().replace('\\', "/"))
+}
+
+fn validate_asset_naming_policy(
+    staged_candidates: &[StagedCandidate],
+    existing_records: &[AssetRecord],
+) -> Vec<Diagnostic> {
+    let batch_conflicts = detect_batch_asset_id_conflicts(staged_candidates);
+    if !batch_conflicts.is_empty() {
+        return batch_conflicts;
+    }
+
+    detect_existing_asset_id_conflicts(staged_candidates, existing_records)
+}
+
+fn detect_batch_asset_id_conflicts(staged_candidates: &[StagedCandidate]) -> Vec<Diagnostic> {
+    let mut candidates_by_asset_id: BTreeMap<&str, Vec<&StagedCandidate>> = BTreeMap::new();
+    for staged in staged_candidates {
+        candidates_by_asset_id.entry(&staged.asset_id).or_default().push(staged);
+    }
+
+    let mut diagnostics = Vec::new();
+    for (asset_id, claims) in candidates_by_asset_id {
+        if claims.len() < 2 {
+            continue;
+        }
+
+        let mut sources =
+            claims.iter().map(|claim| claim.source_path.display().to_string()).collect::<Vec<_>>();
+        sources.sort();
+        sources.dedup();
+        if sources.len() < 2 {
+            continue;
+        }
+
+        diagnostics.push(Diagnostic::error(
+            "AST-008",
+            format!(
+                "asset naming policy rejected {}: multiple source files in the same asset_kind resolve to the same asset_id ({})",
+                asset_id,
+                sources.join(", ")
+            ),
+        ));
+    }
+
+    diagnostics
+}
+
+fn detect_existing_asset_id_conflicts(
+    staged_candidates: &[StagedCandidate],
+    existing_records: &[AssetRecord],
+) -> Vec<Diagnostic> {
+    let mut existing_by_asset_id = BTreeMap::new();
+    for record in existing_records {
+        existing_by_asset_id.insert(record.asset_id.as_str(), record);
+    }
+
+    let mut diagnostics = Vec::new();
+    for staged in staged_candidates {
+        let Some(existing) = existing_by_asset_id.get(staged.asset_id.as_str()) else {
+            continue;
+        };
+
+        if existing.content_hash == staged.content_hash {
+            continue;
+        }
+
+        diagnostics.push(Diagnostic::error(
+            "AST-009",
+            format!(
+                "asset naming policy rejected {}: {} conflicts with published content hash {} already bound to this asset_id; add asset_namespace, provide an asset_id override, rename the source file, or change declared_kind",
+                staged.asset_id,
+                staged.source_path.display(),
+                existing.content_hash
+            ),
+        ));
+    }
+
+    diagnostics
 }
 
 fn load_asset_records(layout: &ArtifactLayout) -> Result<Vec<AssetRecord>, String> {
@@ -679,6 +1032,47 @@ fn query_asset_ids(layout: &ArtifactLayout, query: &AssetQuery) -> Result<Vec<St
     }
 
     Ok(asset_ids)
+}
+
+fn query_compile_asset_ids(layout: &ArtifactLayout) -> Result<Vec<String>, String> {
+    let connection = connect_registry(&layout.registry)?;
+    let mut statement = connection
+        .prepare(
+            "
+            SELECT asset_id
+            FROM assets
+            WHERE status = 'published'
+              AND (readiness IN ('compile_ready', 'warmed') OR warm_status = 'warmed')
+            ORDER BY asset_id
+            ",
+        )
+        .map_err(|error| format!("failed to prepare compile asset query: {error}"))?;
+    let mut rows = statement
+        .query([])
+        .map_err(|error| format!("failed to execute compile asset query: {error}"))?;
+    let mut asset_ids = Vec::new();
+    while let Some(row) =
+        rows.next().map_err(|error| format!("failed to read compile asset row: {error}"))?
+    {
+        asset_ids.push(
+            row.get::<_, String>(0)
+                .map_err(|error| format!("failed to decode compile asset row: {error}"))?,
+        );
+    }
+
+    Ok(asset_ids)
+}
+
+fn query_published_asset_count(layout: &ArtifactLayout) -> Result<usize, String> {
+    let connection = connect_registry(&layout.registry)?;
+    let count = connection
+        .query_row("SELECT COUNT(*) FROM assets WHERE status = 'published'", [], |row| {
+            row.get::<_, i64>(0)
+        })
+        .map_err(|error| format!("failed to count published assets: {error}"))?;
+
+    usize::try_from(count)
+        .map_err(|error| format!("published asset count overflowed usize: {error}"))
 }
 
 fn upsert_asset(layout: &ArtifactLayout, record: &AssetRecord) -> Result<(), String> {
@@ -776,6 +1170,7 @@ fn build_beat_track_analysis(
 }
 
 fn build_cache_key(
+    asset_id: &str,
     content_hash: &str,
     declared_kind: &str,
     probe: &AudioProbeSummary,
@@ -784,7 +1179,7 @@ fn build_cache_key(
     format!(
         "acache:{}",
         hash_string(&format!(
-            "{content_hash}:{declared_kind}:{}:{params_hash}:{BEAT_TRACK_ANALYZER}:{BEAT_TRACK_ANALYZER_VERSION}",
+            "{asset_id}:{content_hash}:{declared_kind}:{}:{params_hash}:{BEAT_TRACK_ANALYZER}:{BEAT_TRACK_ANALYZER_VERSION}",
             probe_fingerprint(probe)
         ))
     )
@@ -1021,7 +1416,11 @@ fn dbfs_tenths(level_ratio: f64) -> i32 {
     (20.0 * level_ratio.log10() * 10.0).round() as i32
 }
 
-fn build_asset_id(declared_kind: &str, source_path: &Path, _content_hash: &str) -> String {
+fn build_asset_id(
+    declared_kind: &str,
+    source_path: &Path,
+    asset_namespace: Option<&str>,
+) -> String {
     let kind_prefix = declared_kind.replace('_', ".");
     let base_name = source_path
         .file_stem()
@@ -1029,11 +1428,15 @@ fn build_asset_id(declared_kind: &str, source_path: &Path, _content_hash: &str) 
         .map(slug)
         .filter(|value| !value.is_empty())
         .unwrap_or_else(|| String::from("asset"));
-    format!("{kind_prefix}.{base_name}")
+
+    match asset_namespace {
+        Some(namespace) => format!("{kind_prefix}.{namespace}.{base_name}"),
+        None => format!("{kind_prefix}.{base_name}"),
+    }
 }
 
-fn asset_hash_key(asset_kind: &str, content_hash: &str) -> String {
-    format!("{asset_kind}:{content_hash}")
+fn asset_identity_key(asset_kind: &str, asset_id: &str, content_hash: &str) -> String {
+    format!("{asset_kind}:{asset_id}:{content_hash}")
 }
 
 fn merge_asset_tags(existing: &AssetRecord, requested_tags: &[String]) -> AssetRecord {
@@ -1099,13 +1502,15 @@ fn diagnostic_from_string(message: String) -> Vec<Diagnostic> {
 #[cfg(test)]
 mod tests {
     use super::{
-        ArtifactLayout, AssetIngestRequest, AssetQuery, get_asset, ingest_assets,
-        list_asset_analysis, list_asset_jobs, list_assets, read_json, slug,
+        ASSET_PACK_MANIFEST_FILE, ArtifactLayout, AssetIngestRequest, AssetQuery, get_asset,
+        ingest_assets, list_asset_analysis, list_asset_jobs, list_assets, list_compile_assets,
+        read_json, save_asset_records, slug, upsert_asset,
     };
+    use std::collections::BTreeMap;
     use std::fs;
     use std::path::{Path, PathBuf};
     use std::time::{SystemTime, UNIX_EPOCH};
-    use vidodo_ir::BeatTrackAnalysis;
+    use vidodo_ir::{AssetRecord, BeatTrackAnalysis};
 
     fn unique_temp_dir(name: &str) -> PathBuf {
         let root = std::env::temp_dir().join(format!(
@@ -1163,6 +1568,10 @@ mod tests {
         fs::write(path, bytes).unwrap();
     }
 
+    fn write_asset_pack_manifest(path: &Path, body: &str) {
+        fs::write(path, body).unwrap();
+    }
+
     #[test]
     fn builds_expected_subdirectories() {
         let layout = ArtifactLayout::new("artifacts");
@@ -1186,6 +1595,8 @@ mod tests {
             source: source_dir,
             declared_kind: String::from("audio_loop"),
             tags: vec![String::from("fixture"), String::from("rhythm")],
+            asset_namespace: None,
+            asset_id_overrides: BTreeMap::new(),
         };
 
         let report = ingest_assets(&layout, &request).unwrap();
@@ -1227,6 +1638,270 @@ mod tests {
 
         let stable_ids = listed.iter().map(|record| record.asset_id.as_str()).collect::<Vec<_>>();
         assert_eq!(stable_ids, vec!["audio.loop.kick-a", "audio.loop.pad-a"]);
+
+        fs::remove_dir_all(root).unwrap();
+    }
+
+    #[test]
+    fn rejects_name_conflicts_within_same_ingest_batch() {
+        let root = unique_temp_dir("batch-conflict");
+        let source_dir = root.join("imports");
+        fs::create_dir_all(source_dir.join("crate-a")).unwrap();
+        fs::create_dir_all(source_dir.join("crate-b")).unwrap();
+        write_test_wav(
+            &source_dir.join("crate-a").join("kick.wav"),
+            1,
+            &[0, 24_000, 48_000],
+            72_000,
+        );
+        write_test_wav(
+            &source_dir.join("crate-b").join("kick.wav"),
+            1,
+            &[12_000, 36_000, 60_000],
+            72_000,
+        );
+
+        let layout = ArtifactLayout::new(root.join("artifacts"));
+        let diagnostics = ingest_assets(
+            &layout,
+            &AssetIngestRequest {
+                source: source_dir,
+                declared_kind: String::from("audio_loop"),
+                tags: vec![String::from("fixture")],
+                asset_namespace: None,
+                asset_id_overrides: BTreeMap::new(),
+            },
+        )
+        .unwrap_err();
+
+        assert!(diagnostics.iter().any(|diagnostic| diagnostic.code == "AST-008"));
+        assert!(
+            diagnostics.iter().any(|diagnostic| diagnostic.message.contains("audio.loop.kick"))
+        );
+        assert!(list_assets(&layout, &AssetQuery::default()).unwrap().is_empty());
+
+        fs::remove_dir_all(root).unwrap();
+    }
+
+    #[test]
+    fn rejects_name_conflicts_against_published_registry_asset() {
+        let root = unique_temp_dir("registry-conflict");
+        let first_dir = root.join("first-import");
+        let second_dir = root.join("second-import");
+        fs::create_dir_all(&first_dir).unwrap();
+        fs::create_dir_all(&second_dir).unwrap();
+        write_test_wav(&first_dir.join("kick.wav"), 1, &[0, 24_000, 48_000], 72_000);
+        write_test_wav(&second_dir.join("kick.wav"), 1, &[6_000, 30_000, 54_000], 72_000);
+
+        let layout = ArtifactLayout::new(root.join("artifacts"));
+        ingest_assets(
+            &layout,
+            &AssetIngestRequest {
+                source: first_dir,
+                declared_kind: String::from("audio_loop"),
+                tags: vec![String::from("fixture")],
+                asset_namespace: None,
+                asset_id_overrides: BTreeMap::new(),
+            },
+        )
+        .unwrap();
+
+        let diagnostics = ingest_assets(
+            &layout,
+            &AssetIngestRequest {
+                source: second_dir,
+                declared_kind: String::from("audio_loop"),
+                tags: vec![String::from("fixture")],
+                asset_namespace: None,
+                asset_id_overrides: BTreeMap::new(),
+            },
+        )
+        .unwrap_err();
+
+        assert!(diagnostics.iter().any(|diagnostic| diagnostic.code == "AST-009"));
+        assert!(
+            diagnostics.iter().any(|diagnostic| diagnostic.message.contains("audio.loop.kick"))
+        );
+
+        let listed = list_assets(&layout, &AssetQuery::default()).unwrap();
+        assert_eq!(listed.len(), 1);
+
+        fs::remove_dir_all(root).unwrap();
+    }
+
+    #[test]
+    fn lists_compile_assets_from_registry_policy() {
+        let root = unique_temp_dir("compile-assets");
+        let layout = ArtifactLayout::new(root.join("artifacts"));
+        layout.ensure().unwrap();
+
+        let compile_ready = AssetRecord {
+            asset_id: String::from("audio.loop.kick-a"),
+            asset_kind: String::from("audio_loop"),
+            content_hash: String::from("sha256:compile-ready"),
+            raw_locator: Some(String::from("artifacts/assets/raw/audio.loop.kick-a/kick-a.wav")),
+            normalized_locator: Some(String::from(
+                "artifacts/assets/normalized/audio-loop-kick-a.wav",
+            )),
+            status: String::from("published"),
+            analysis_refs: Vec::new(),
+            derived_refs: Vec::new(),
+            tags: vec![String::from("fixture")],
+            warm_status: Some(String::from("cold")),
+            readiness: Some(String::from("compile_ready")),
+        };
+        let warmed = AssetRecord {
+            asset_id: String::from("audio.loop.pad-a"),
+            asset_kind: String::from("audio_loop"),
+            content_hash: String::from("sha256:warmed"),
+            raw_locator: Some(String::from("artifacts/assets/raw/audio.loop.pad-a/pad-a.wav")),
+            normalized_locator: Some(String::from(
+                "artifacts/assets/normalized/audio-loop-pad-a.wav",
+            )),
+            status: String::from("published"),
+            analysis_refs: Vec::new(),
+            derived_refs: Vec::new(),
+            tags: vec![String::from("fixture")],
+            warm_status: Some(String::from("warmed")),
+            readiness: Some(String::from("metadata_only")),
+        };
+        let metadata_only = AssetRecord {
+            asset_id: String::from("audio.loop.sketch-a"),
+            asset_kind: String::from("audio_loop"),
+            content_hash: String::from("sha256:metadata-only"),
+            raw_locator: None,
+            normalized_locator: None,
+            status: String::from("published"),
+            analysis_refs: Vec::new(),
+            derived_refs: Vec::new(),
+            tags: vec![String::from("scratch")],
+            warm_status: Some(String::from("cold")),
+            readiness: Some(String::from("metadata_only")),
+        };
+
+        for record in [&compile_ready, &warmed, &metadata_only] {
+            upsert_asset(&layout, record).unwrap();
+        }
+        save_asset_records(
+            &layout,
+            &[compile_ready.clone(), metadata_only.clone(), warmed.clone()],
+        )
+        .unwrap();
+
+        let selection = list_compile_assets(&layout).unwrap();
+        assert_eq!(selection.published_asset_count, 3);
+        let selected_ids = selection
+            .eligible_assets
+            .iter()
+            .map(|record| record.asset_id.as_str())
+            .collect::<Vec<_>>();
+        assert_eq!(selected_ids, vec!["audio.loop.kick-a", "audio.loop.pad-a"]);
+
+        fs::remove_dir_all(root).unwrap();
+    }
+
+    #[test]
+    fn allows_same_basename_across_namespaced_ingest_batches() {
+        let root = unique_temp_dir("namespaced-batches");
+        let bundle_a = root.join("bundle-a");
+        let bundle_b = root.join("bundle-b");
+        fs::create_dir_all(&bundle_a).unwrap();
+        fs::create_dir_all(&bundle_b).unwrap();
+        write_test_wav(&bundle_a.join("kick.wav"), 1, &[0, 24_000, 48_000], 72_000);
+        write_test_wav(&bundle_b.join("kick.wav"), 1, &[0, 24_000, 48_000], 72_000);
+        write_asset_pack_manifest(
+            &bundle_a.join(ASSET_PACK_MANIFEST_FILE),
+            r#"{
+  "asset_namespace": "bundle-a"
+}
+"#,
+        );
+        write_asset_pack_manifest(
+            &bundle_b.join(ASSET_PACK_MANIFEST_FILE),
+            r#"{
+  "asset_namespace": "bundle-b"
+}
+"#,
+        );
+
+        let layout = ArtifactLayout::new(root.join("artifacts"));
+        ingest_assets(
+            &layout,
+            &AssetIngestRequest {
+                source: bundle_a,
+                declared_kind: String::from("audio_loop"),
+                tags: vec![String::from("fixture")],
+                asset_namespace: None,
+                asset_id_overrides: BTreeMap::new(),
+            },
+        )
+        .unwrap();
+        ingest_assets(
+            &layout,
+            &AssetIngestRequest {
+                source: bundle_b,
+                declared_kind: String::from("audio_loop"),
+                tags: vec![String::from("fixture")],
+                asset_namespace: None,
+                asset_id_overrides: BTreeMap::new(),
+            },
+        )
+        .unwrap();
+
+        let listed = list_assets(&layout, &AssetQuery::default()).unwrap();
+        let ids = listed.iter().map(|record| record.asset_id.as_str()).collect::<Vec<_>>();
+        assert_eq!(ids, vec!["audio.loop.bundle-a.kick", "audio.loop.bundle-b.kick"]);
+
+        fs::remove_dir_all(root).unwrap();
+    }
+
+    #[test]
+    fn allows_same_basename_with_manifest_asset_id_overrides() {
+        let root = unique_temp_dir("manifest-override-batch");
+        let source_dir = root.join("imports");
+        fs::create_dir_all(source_dir.join("crate-a")).unwrap();
+        fs::create_dir_all(source_dir.join("crate-b")).unwrap();
+        write_test_wav(
+            &source_dir.join("crate-a").join("kick.wav"),
+            1,
+            &[0, 24_000, 48_000],
+            72_000,
+        );
+        write_test_wav(
+            &source_dir.join("crate-b").join("kick.wav"),
+            1,
+            &[0, 24_000, 48_000],
+            72_000,
+        );
+        write_asset_pack_manifest(
+            &source_dir.join(ASSET_PACK_MANIFEST_FILE),
+            r#"{
+  "asset_id_overrides": {
+    "crate-a/kick.wav": "audio.loop.bundle-a.kick",
+    "crate-b/kick.wav": "audio.loop.bundle-b.kick"
+  }
+}
+"#,
+        );
+
+        let layout = ArtifactLayout::new(root.join("artifacts"));
+        let report = ingest_assets(
+            &layout,
+            &AssetIngestRequest {
+                source: source_dir,
+                declared_kind: String::from("audio_loop"),
+                tags: vec![String::from("fixture")],
+                asset_namespace: None,
+                asset_id_overrides: BTreeMap::new(),
+            },
+        )
+        .unwrap();
+
+        assert_eq!(report.run.discovered, 2);
+        let published_ids =
+            report.assets.iter().map(|record| record.asset_id.as_str()).collect::<Vec<_>>();
+        assert_eq!(published_ids, vec!["audio.loop.bundle-a.kick", "audio.loop.bundle-b.kick"]);
+        assert_eq!(report.analysis_entries.len(), 2);
 
         fs::remove_dir_all(root).unwrap();
     }

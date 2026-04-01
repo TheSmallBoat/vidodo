@@ -1,3 +1,4 @@
+use std::collections::BTreeMap;
 use std::env;
 use std::fs;
 use std::path::{Path, PathBuf};
@@ -13,7 +14,8 @@ use vidodo_patch_manager::{apply_patch, check_patch, rollback_patch};
 use vidodo_scheduler::{RunStatusRecord, simulate_run};
 use vidodo_storage::{
     ArtifactLayout, AssetIngestRequest, AssetQuery, discover_repo_root, get_asset, ingest_assets,
-    list_asset_analysis, list_asset_jobs, list_assets, read_json, slug, write_json,
+    list_asset_analysis, list_asset_jobs, list_assets, list_compile_assets, read_json, slug,
+    write_json,
 };
 use vidodo_trace::{load_events, load_manifest, manifest_path, write_trace};
 use vidodo_validator::validate_plan;
@@ -69,7 +71,8 @@ fn handle_doctor(context: &CommandContext) -> Result<(), ExitCode> {
     let capability = "system.doctor";
     let request_id = "req-doctor";
     let plan_dir = default_plan_dir(&context.repo_root);
-    let assets_file = default_assets_file(context);
+    let assets_file = default_assets_file(context)
+        .map_err(|message| emit_error(capability, request_id, "CLI-008", message))?;
     let patch_file = default_patch_file(&context.repo_root);
 
     let plan = load_plan_bundle(&plan_dir, &assets_file)
@@ -207,18 +210,23 @@ fn handle_asset(context: &CommandContext, args: &[String]) -> Result<(), ExitCod
             let request_id = "req-asset-ingest";
             let source_dir = required_flag(rest, "--source-dir")
                 .map_err(|message| emit_error(capability, request_id, "CLI-070", message))?;
+            let source_path = resolve_path(context, &source_dir);
             let declared_kind = required_flag(rest, "--declared-kind")
                 .map_err(|message| emit_error(capability, request_id, "CLI-071", message))?;
             let tags = optional_flag(rest, "--tags")
                 .map(|value| parse_csv_list(&value))
                 .unwrap_or_default();
+            let asset_namespace = optional_flag(rest, "--asset-namespace");
+            let naming_manifest = asset_pack_manifest_path(&source_path);
 
             let report = ingest_assets(
                 &context.layout,
                 &AssetIngestRequest {
-                    source: resolve_path(context, &source_dir),
+                    source: source_path,
                     declared_kind,
                     tags,
+                    asset_namespace: asset_namespace.clone(),
+                    asset_id_overrides: BTreeMap::new(),
                 },
             )
             .map_err(|diagnostics| {
@@ -237,6 +245,17 @@ fn handle_asset(context: &CommandContext, args: &[String]) -> Result<(), ExitCod
 
             let report_path = context.layout.ingestion_report_path(&report.run.ingestion_run_id);
             let registry_path = context.layout.asset_registry_file();
+            let mut artifacts = vec![
+                relative_to_repo(context, &report_path),
+                relative_to_repo(context, &registry_path),
+            ];
+            let naming_manifest_ref = if naming_manifest.exists() {
+                let manifest_ref = relative_to_repo(context, &naming_manifest);
+                artifacts.push(manifest_ref.clone());
+                Some(manifest_ref)
+            } else {
+                None
+            };
             print_response(
                 capability,
                 request_id,
@@ -244,6 +263,8 @@ fn handle_asset(context: &CommandContext, args: &[String]) -> Result<(), ExitCod
                 json!({
                     "ingestion_run_id": report.run.ingestion_run_id,
                     "source": report.run.source,
+                    "asset_namespace_override": asset_namespace,
+                    "asset_naming_manifest": naming_manifest_ref,
                     "discovered": report.run.discovered,
                     "published": report.run.published,
                     "reused": report.run.reused,
@@ -255,10 +276,7 @@ fn handle_asset(context: &CommandContext, args: &[String]) -> Result<(), ExitCod
                         .collect::<Vec<_>>()
                 }),
                 vec![],
-                vec![
-                    relative_to_repo(context, &report_path),
-                    relative_to_repo(context, &registry_path),
-                ],
+                artifacts,
                 vec![String::from(
                     "run `avctl asset list [--kind <kind>] [--tag <tag>]` to inspect published assets",
                 )],
@@ -350,7 +368,7 @@ fn handle_asset(context: &CommandContext, args: &[String]) -> Result<(), ExitCod
         _ => Err(emit_usage_error(
             "asset",
             "req-asset",
-            "usage: avctl asset ingest --source-dir <path> --declared-kind <kind> [--tags tag1,tag2] | avctl asset list [--kind <kind>] [--tag <tag>] | avctl asset show --asset-id <id>",
+            "usage: avctl asset ingest --source-dir <path> --declared-kind <kind> [--tags tag1,tag2] [--asset-namespace <namespace>] | avctl asset list [--kind <kind>] [--tag <tag>] | avctl asset show --asset-id <id>",
         )),
     }
 }
@@ -362,9 +380,11 @@ fn handle_plan(context: &CommandContext, args: &[String]) -> Result<(), ExitCode
         [command, rest @ ..] if command == "validate" => {
             let plan_dir = required_flag(rest, "--plan-dir")
                 .map_err(|message| emit_error(capability, request_id, "CLI-010", message))?;
-            let asset_file = optional_flag(rest, "--assets-file")
-                .map(|value| resolve_path(context, &value))
-                .unwrap_or_else(|| default_assets_file(context));
+            let asset_file = match optional_flag(rest, "--assets-file") {
+                Some(value) => resolve_path(context, &value),
+                None => default_assets_file(context)
+                    .map_err(|message| emit_error(capability, request_id, "CLI-012", message))?,
+            };
             let plan = load_plan_bundle(&resolve_path(context, &plan_dir), &asset_file)
                 .map_err(|message| emit_error(capability, request_id, "CLI-011", message))?;
             let diagnostics = validate_plan(&plan);
@@ -406,9 +426,11 @@ fn handle_compile(context: &CommandContext, args: &[String]) -> Result<(), ExitC
         [command, rest @ ..] if command == "run" => {
             let plan_dir = required_flag(rest, "--plan-dir")
                 .map_err(|message| emit_error(capability, request_id, "CLI-020", message))?;
-            let asset_file = optional_flag(rest, "--assets-file")
-                .map(|value| resolve_path(context, &value))
-                .unwrap_or_else(|| default_assets_file(context));
+            let asset_file = match optional_flag(rest, "--assets-file") {
+                Some(value) => resolve_path(context, &value),
+                None => default_assets_file(context)
+                    .map_err(|message| emit_error(capability, request_id, "CLI-023", message))?,
+            };
             let plan = load_plan_bundle(&resolve_path(context, &plan_dir), &asset_file)
                 .map_err(|message| emit_error(capability, request_id, "CLI-021", message))?;
             let compiled = compile_plan(&plan).map_err(|diagnostics| {
@@ -814,6 +836,10 @@ fn resolve_path(context: &CommandContext, raw: &str) -> PathBuf {
     if candidate.is_absolute() { candidate } else { context.repo_root.join(candidate) }
 }
 
+fn asset_pack_manifest_path(source_path: &Path) -> PathBuf {
+    source_path.join("vidodo-asset-pack.json")
+}
+
 fn relative_to_repo(context: &CommandContext, path: &Path) -> String {
     path.strip_prefix(&context.repo_root)
         .map(|relative| relative.display().to_string())
@@ -824,17 +850,21 @@ fn default_plan_dir(repo_root: &Path) -> PathBuf {
     repo_root.join("tests/fixtures/plans/minimal-show")
 }
 
-fn default_assets_file(context: &CommandContext) -> PathBuf {
-    let registry_assets = context.layout.asset_registry_file();
-    if registry_assets.exists() {
-        match read_json::<Vec<AssetRecord>>(&registry_assets) {
-            Ok(records) if !records.is_empty() => return registry_assets,
-            Ok(_) => {}
-            Err(_) => return registry_assets,
-        }
+fn default_assets_file(context: &CommandContext) -> Result<PathBuf, String> {
+    let selection = list_compile_assets(&context.layout)?;
+    if selection.published_asset_count == 0 {
+        return Ok(context.repo_root.join("tests/fixtures/assets/asset-records.json"));
     }
 
-    context.repo_root.join("tests/fixtures/assets/asset-records.json")
+    if selection.eligible_assets.is_empty() {
+        return Err(String::from(
+            "asset registry contains published assets, but none are compile_ready or warmed; publish eligible assets or pass --assets-file to override",
+        ));
+    }
+
+    let snapshot_path = context.layout.exports.join("compile-ready-asset-records.json");
+    write_json(&snapshot_path, &selection.eligible_assets)?;
+    Ok(snapshot_path)
 }
 
 fn default_patch_file(repo_root: &Path) -> PathBuf {
@@ -864,7 +894,9 @@ fn emit_usage_error(capability: &str, request_id: &str, usage: &str) -> ExitCode
 
 fn print_usage() {
     eprintln!("avctl doctor");
-    eprintln!("avctl asset ingest --source-dir <path> --declared-kind <kind> [--tags tag1,tag2]");
+    eprintln!(
+        "avctl asset ingest --source-dir <path> --declared-kind <kind> [--tags tag1,tag2] [--asset-namespace <namespace>]"
+    );
     eprintln!("avctl asset list [--kind <kind>] [--tag <tag>]");
     eprintln!("avctl asset show --asset-id <id>");
     eprintln!("avctl plan validate --plan-dir <path> [--assets-file <path>]");

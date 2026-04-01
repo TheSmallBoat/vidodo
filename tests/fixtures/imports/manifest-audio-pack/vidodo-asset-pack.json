@@ -1,0 +1,6 @@
+{
+    "asset_id_overrides": {
+        "crate-a/kick.wav": "audio.loop.bundle-a.kick",
+        "crate-b/kick.wav": "audio.loop.bundle-b.kick"
+    }
+}

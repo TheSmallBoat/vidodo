@@ -43,9 +43,10 @@ The codebase is still early-stage, but the repository now has a real closed-loop
 - `scripts/schema-validate.sh` validates root schemas against controlled fixtures in `tests/schema/`
 - `scripts/init-artifact-store.sh` initializes the root artifact store, including raw/normalized asset layers and analysis cache directories
 - `tests/fixtures/` contains the controlled plan, asset, patch, and import fixtures used by the current loops
+- `tests/fixtures/imports/manifest-audio-pack/` is the formal sample asset pack fixture showing how `vidodo-asset-pack.json` travels with media files
 - `vidodo-src/apps/avctl` now exposes the operator flow for `asset ingest/list/show`, `plan validate`, `compile run`, `run start/status`, `patch check/submit/rollback`, `trace show/events`, and `doctor`
-- `asset ingest` now runs a local minimal WAV/PCM audio probe and persists probe-backed beat-track results into the analysis cache
-- `plan validate` and `compile run` now prefer the registry-backed asset export when ingest has already published assets, and fall back to the controlled asset fixture otherwise
+- `asset ingest` now runs a local minimal WAV/PCM audio probe, persists probe-backed beat-track results into the analysis cache, rejects same-name `asset_id` collisions inside one `asset_kind` by default, and auto-loads `vidodo-asset-pack.json` from the source dir so asset packs can carry `asset_namespace` or per-file `asset_id_overrides` rules with the media itself
+- `plan validate` and `compile run` now materialize a compile snapshot from registry query results filtered to published `compile_ready` or `warmed` assets; they fall back to the controlled asset fixture only when the registry is empty
 - `vidodo-src/crates/ir`, `validator`, `compiler`, `scheduler`, `patch-manager`, `trace`, and `storage` implement the deterministic compile -> patch -> fake runtime -> trace loop
 - `vidodo-src/apps/core-service`, `mcp-adapter`, and `visual-runtime` remain deliberately deferred placeholders until this single mainline is exhausted
 
