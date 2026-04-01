@@ -69,7 +69,7 @@ fn handle_doctor(context: &CommandContext) -> Result<(), ExitCode> {
     let capability = "system.doctor";
     let request_id = "req-doctor";
     let plan_dir = default_plan_dir(&context.repo_root);
-    let assets_file = default_assets_file(&context.repo_root);
+    let assets_file = default_assets_file(context);
     let patch_file = default_patch_file(&context.repo_root);
 
     let plan = load_plan_bundle(&plan_dir, &assets_file)
@@ -184,6 +184,7 @@ fn handle_doctor(context: &CommandContext) -> Result<(), ExitCode> {
         "ok",
         json!({
             "show_id": patched.show_id,
+            "asset_source": relative_to_repo(context, &assets_file),
             "compiled_revision": compiled.revision,
             "patched_revision": patched.revision,
             "run_id": run_id,
@@ -363,7 +364,7 @@ fn handle_plan(context: &CommandContext, args: &[String]) -> Result<(), ExitCode
                 .map_err(|message| emit_error(capability, request_id, "CLI-010", message))?;
             let asset_file = optional_flag(rest, "--assets-file")
                 .map(|value| resolve_path(context, &value))
-                .unwrap_or_else(|| default_assets_file(&context.repo_root));
+                .unwrap_or_else(|| default_assets_file(context));
             let plan = load_plan_bundle(&resolve_path(context, &plan_dir), &asset_file)
                 .map_err(|message| emit_error(capability, request_id, "CLI-011", message))?;
             let diagnostics = validate_plan(&plan);
@@ -378,12 +379,13 @@ fn handle_plan(context: &CommandContext, args: &[String]) -> Result<(), ExitCode
                 status,
                 json!({
                     "show_id": plan.show_id,
+                    "asset_source": relative_to_repo(context, &asset_file),
                     "section_count": plan.set_plan.sections.len(),
                     "audio_layer_count": plan.audio_dsl.layers.len(),
                     "visual_scene_count": plan.visual_dsl.scenes.len()
                 }),
                 diagnostics,
-                vec![],
+                vec![relative_to_repo(context, &asset_file)],
                 vec![String::from(
                     "run `avctl compile run --plan-dir <path>` when validation is clean",
                 )],
@@ -406,7 +408,7 @@ fn handle_compile(context: &CommandContext, args: &[String]) -> Result<(), ExitC
                 .map_err(|message| emit_error(capability, request_id, "CLI-020", message))?;
             let asset_file = optional_flag(rest, "--assets-file")
                 .map(|value| resolve_path(context, &value))
-                .unwrap_or_else(|| default_assets_file(&context.repo_root));
+                .unwrap_or_else(|| default_assets_file(context));
             let plan = load_plan_bundle(&resolve_path(context, &plan_dir), &asset_file)
                 .map_err(|message| emit_error(capability, request_id, "CLI-021", message))?;
             let compiled = compile_plan(&plan).map_err(|diagnostics| {
@@ -422,8 +424,9 @@ fn handle_compile(context: &CommandContext, args: &[String]) -> Result<(), ExitC
                 .err()
                 .unwrap()
             })?;
-            let artifacts = persist_revision(context, &compiled)
+            let mut artifacts = persist_revision(context, &compiled)
                 .map_err(|message| emit_error(capability, request_id, "CLI-022", message))?;
+            artifacts.insert(0, relative_to_repo(context, &asset_file));
 
             print_response(
                 capability,
@@ -431,6 +434,7 @@ fn handle_compile(context: &CommandContext, args: &[String]) -> Result<(), ExitC
                 "ok",
                 json!({
                     "show_id": compiled.show_id,
+                    "asset_source": relative_to_repo(context, &asset_file),
                     "revision": compiled.revision,
                     "compile_run_id": compiled.compile_run_id,
                     "timeline_entries": compiled.timeline.len()
@@ -820,8 +824,17 @@ fn default_plan_dir(repo_root: &Path) -> PathBuf {
     repo_root.join("tests/fixtures/plans/minimal-show")
 }
 
-fn default_assets_file(repo_root: &Path) -> PathBuf {
-    repo_root.join("tests/fixtures/assets/asset-records.json")
+fn default_assets_file(context: &CommandContext) -> PathBuf {
+    let registry_assets = context.layout.asset_registry_file();
+    if registry_assets.exists() {
+        match read_json::<Vec<AssetRecord>>(&registry_assets) {
+            Ok(records) if !records.is_empty() => return registry_assets,
+            Ok(_) => {}
+            Err(_) => return registry_assets,
+        }
+    }
+
+    context.repo_root.join("tests/fixtures/assets/asset-records.json")
 }
 
 fn default_patch_file(repo_root: &Path) -> PathBuf {

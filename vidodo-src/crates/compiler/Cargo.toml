@@ -12,6 +12,7 @@ vidodo-validator = { path = "../validator" }
 
 [dev-dependencies]
 criterion.workspace = true
+serde.workspace = true
 serde_json.workspace = true
 
 [[bench]]

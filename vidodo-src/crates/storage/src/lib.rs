@@ -1021,7 +1021,7 @@ fn dbfs_tenths(level_ratio: f64) -> i32 {
     (20.0 * level_ratio.log10() * 10.0).round() as i32
 }
 
-fn build_asset_id(declared_kind: &str, source_path: &Path, content_hash: &str) -> String {
+fn build_asset_id(declared_kind: &str, source_path: &Path, _content_hash: &str) -> String {
     let kind_prefix = declared_kind.replace('_', ".");
     let base_name = source_path
         .file_stem()
@@ -1029,7 +1029,7 @@ fn build_asset_id(declared_kind: &str, source_path: &Path, content_hash: &str) -
         .map(slug)
         .filter(|value| !value.is_empty())
         .unwrap_or_else(|| String::from("asset"));
-    format!("{kind_prefix}.{base_name}-{}", short_hash(content_hash))
+    format!("{kind_prefix}.{base_name}")
 }
 
 fn asset_hash_key(asset_kind: &str, content_hash: &str) -> String {
@@ -1214,6 +1214,7 @@ mod tests {
         assert_eq!(analysis.len(), 1);
         let payload_path = root.join(&analysis[0].payload_ref);
         let payload: BeatTrackAnalysis = read_json(&payload_path).unwrap();
+        assert_eq!(payload.asset_id, "audio.loop.kick-a");
         assert_eq!(payload.probe.codec, "pcm_s16le");
         assert_eq!(payload.probe.sample_rate_hz, 48_000);
         assert_eq!(payload.probe.channel_count, 1);
@@ -1223,6 +1224,9 @@ mod tests {
 
         let jobs = list_asset_jobs(&layout, &asset.asset_id).unwrap();
         assert_eq!(jobs.len(), 1);
+
+        let stable_ids = listed.iter().map(|record| record.asset_id.as_str()).collect::<Vec<_>>();
+        assert_eq!(stable_ids, vec!["audio.loop.kick-a", "audio.loop.pad-a"]);
 
         fs::remove_dir_all(root).unwrap();
     }

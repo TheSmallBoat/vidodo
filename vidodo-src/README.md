@@ -42,7 +42,7 @@ Run from the repository root:
 
 1. Validate a controlled plan fixture through `avctl plan validate`.
 2. Ingest controlled WAV/PCM source files through `avctl asset ingest`, run the local audio probe, and inspect the registry with `avctl asset list/show`.
-3. Compile the plan into revision artifacts through `avctl compile run`.
+3. Compile the plan into revision artifacts through `avctl compile run`, which now prefers registry-backed asset records when ingest has populated the artifact store.
 4. Submit a bounded local-content patch through `avctl patch submit`.
 5. Execute the patched revision through `avctl run start`.
 6. Persist trace artifacts and inspect them with `avctl trace show/events`.
