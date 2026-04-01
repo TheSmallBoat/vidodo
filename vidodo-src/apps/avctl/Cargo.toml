@@ -1,0 +1,17 @@
+[package]
+name = "avctl"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+authors.workspace = true
+repository.workspace = true
+
+[dependencies]
+serde.workspace = true
+serde_json.workspace = true
+vidodo-compiler = { path = "../../crates/compiler" }
+vidodo-ir = { path = "../../crates/ir" }
+vidodo-scheduler = { path = "../../crates/scheduler" }
+vidodo-storage = { path = "../../crates/storage" }
+vidodo-trace = { path = "../../crates/trace" }
+vidodo-validator = { path = "../../crates/validator" }

@@ -1,0 +1,161 @@
+name: Task Card
+description: Create a task-card-aligned issue for Vidodo workstreams and Copilot-driven execution.
+title: "[TASK] <workstream>-<id> <short title>"
+labels:
+  - task
+body:
+  - type: markdown
+    attributes:
+      value: |
+        使用这个模板创建可核销的任务卡问题单。
+
+        要求：
+        - 任务范围必须足够小，能形成最小闭环
+        - 验收标准必须可测试、可验证、可核销
+        - 与 `vidodo-docs/24-工作任务卡与开发里程碑.md` 对齐
+
+  - type: input
+    id: task_id
+    attributes:
+      label: 任务卡号
+      description: 例如 WSA-01、WSB-05、WSC-02
+      placeholder: WSA-01
+    validations:
+      required: true
+
+  - type: input
+    id: title_short
+    attributes:
+      label: 任务标题
+      description: 使用动词开头的简短描述
+      placeholder: 定义通用对象头 Schema
+    validations:
+      required: true
+
+  - type: dropdown
+    id: workstream
+    attributes:
+      label: Workstream
+      description: 选择任务所属工作流
+      options:
+        - A - Schema 与工件基础
+        - B - 资产接入与分析
+        - C - Compiler 与 Timeline
+        - D - Runtime 与调度
+        - E - Patch / Trace / Replay
+        - F - CLI / MCP / 运维能力
+    validations:
+      required: true
+
+  - type: dropdown
+    id: status
+    attributes:
+      label: 当前状态
+      options:
+        - todo
+        - in_progress
+        - review
+        - done
+        - blocked
+    validations:
+      required: true
+
+  - type: input
+    id: dependencies
+    attributes:
+      label: 依赖任务卡
+      description: 没有则填“无”
+      placeholder: WSA-01, WSA-02
+    validations:
+      required: true
+
+  - type: dropdown
+    id: role
+    attributes:
+      label: 推荐角色
+      options:
+        - Core Engineer
+        - Tools Engineer
+        - Analysis Engineer
+        - Runtime Engineer
+        - Infra Engineer
+    validations:
+      required: true
+
+  - type: dropdown
+    id: size
+    attributes:
+      label: 规模
+      description: S = 1-2 工作日，M = 3-5 工作日，L = 5+ 工作日
+      options:
+        - S
+        - M
+        - L
+    validations:
+      required: true
+
+  - type: textarea
+    id: boundary_docs
+    attributes:
+      label: 相关边界文档
+      description: 列出本任务必须遵守的设计文档
+      placeholder: |
+        - vidodo-docs/14-MVP技术架构图与Phase0实施清单.md
+        - vidodo-docs/21-测试与验证顶层设计方案.md
+    validations:
+      required: true
+
+  - type: textarea
+    id: deliverables
+    attributes:
+      label: 交付物
+      description: 列出必须产出的代码、脚本、schema、fixture、文档等
+      placeholder: |
+        - schemas/common/object-header.v0.json
+        - tests/schema/common/object-header.valid.json
+    validations:
+      required: true
+
+  - type: textarea
+    id: acceptance
+    attributes:
+      label: 验收标准
+      description: 必须是可客观判断的核销条件
+      placeholder: |
+        - 所有示例通过 schema 校验
+        - 缺少必填字段时返回结构化 diagnostic
+    validations:
+      required: true
+
+  - type: textarea
+    id: minimal_loop
+    attributes:
+      label: 最小闭环方案
+      description: 说明任务如何以最小可验证路径完成
+      placeholder: |
+        1. 先添加失败 fixture
+        2. 实现最小 schema
+        3. 跑 schema 校验脚本
+    validations:
+      required: true
+
+  - type: textarea
+    id: test_plan
+    attributes:
+      label: 测试与验证计划
+      description: 写出准备执行的命令、测试或 smoke 路径
+      placeholder: |
+        - cargo test -p vidodo-validator
+        - cargo fmt --all --check
+        - cargo clippy --workspace --all-targets --all-features -- -D warnings
+    validations:
+      required: true
+
+  - type: textarea
+    id: blocker
+    attributes:
+      label: 阻塞与风险
+      description: 如无则填“无”
+      placeholder: 无
+    validations:
+      required: true

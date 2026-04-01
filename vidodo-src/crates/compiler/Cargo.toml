@@ -1,0 +1,18 @@
+[package]
+name = "vidodo-compiler"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+authors.workspace = true
+repository.workspace = true
+
+[dependencies]
+vidodo-ir = { path = "../ir" }
+vidodo-validator = { path = "../validator" }
+
+[dev-dependencies]
+criterion.workspace = true
+
+[[bench]]
+name = "minimal_compile"
+harness = false

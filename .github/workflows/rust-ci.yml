@@ -1,0 +1,58 @@
+name: Rust CI
+
+on:
+  pull_request:
+    paths:
+      - 'vidodo-src/**'
+      - '.github/**'
+  push:
+    branches:
+      - main
+    paths:
+      - 'vidodo-src/**'
+      - '.github/**'
+  workflow_dispatch:
+
+jobs:
+  quality-gate:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: vidodo-src
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          components: rustfmt, clippy
+      - uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: vidodo-src
+      - name: Generate lockfile
+        run: cargo generate-lockfile
+      - name: fmt-check
+        run: cargo fmt --all --check
+      - name: clippy
+        run: cargo clippy --workspace --all-targets --all-features -- -D warnings
+      - name: test
+        run: cargo test --workspace --all-targets
+      - name: install cargo-audit
+        run: cargo install cargo-audit --locked
+      - name: audit
+        run: cargo audit
+
+  bench:
+    if: github.event_name == 'workflow_dispatch' || github.ref == 'refs/heads/main'
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: vidodo-src
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+      - uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: vidodo-src
+      - name: Generate lockfile
+        run: cargo generate-lockfile
+      - name: bench
+        run: cargo bench --workspace

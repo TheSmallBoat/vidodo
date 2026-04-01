@@ -6,9 +6,9 @@ The project defines a deterministic system that accepts structured plans and liv
 
 ## Repository Status
 
-- Current stage: design and architecture drafting
-- Main contents: product documents, technical design documents, and MCP tool schema
-- Implementation status: `vidodo-src/` is reserved for future code and is currently empty
+- Current stage: design-first repository with an initial Rust workspace scaffold
+- Main contents: product documents, technical design documents, GitHub workflow templates, Copilot harness files, and a minimal Rust implementation skeleton
+- Implementation status: `vidodo-src/` now contains a compilable Rust workspace with placeholder apps, core crates, benchmarks, and workspace automation
 
 ## What This Repository Covers
 
@@ -18,6 +18,8 @@ The project defines a deterministic system that accepts structured plans and liv
 - Runtime architecture for audio and visual execution
 - MVP architecture, Phase 0 implementation plan, and engineering workflow guidance
 - Initial JSON Schema artifacts for MCP tool definitions
+- Rust workspace scaffolding for the Phase 0 build loop
+- Copilot-driven task execution rules, custom agents, and quality-gate workflow
 
 ## Core Idea
 
@@ -34,28 +36,6 @@ That means:
 - offline and live execution share the same time semantics and artifact model
 - audio and visual runtimes are coordinated through a common protocol rather than loose signal following
 
-## Repository Structure
-
-```text
-.
-├── vidodo-docs/
-│   ├── 00-26 design and planning documents
-│   └── schemas/
-│       └── mcp-tools/
-│           └── av-tool-registry.v0.json
-└── vidodo-src/
-    └── reserved for implementation code
-```
-
-## Recommended Reading Order
-
-If you want the quickest path to understanding the repository, start here:
-
-1. `vidodo-docs/00-视听系统产品包总览.md`
-2. `vidodo-docs/02-视听系统产品定位与规划方案书.md`
-3. `vidodo-docs/09-CLI与MCP能力模型与命令语义.md`
-4. `vidodo-docs/14-MVP技术架构图与Phase0实施清单.md`
-5. `vidodo-docs/25-开发工作流与分支策略.md`
 
 ## Key Design Directions
 
@@ -72,29 +52,73 @@ If you want the quickest path to understanding the repository, start here:
 - 1 MCP tool registry schema draft
 - Phase 0 implementation blueprint
 - Development workflow and branching strategy draft
+- A Rust workspace under `vidodo-src/` with apps, crates, `xtask`, benchmark, and lockfile
+- GitHub Actions CI for `fmt-check`, `clippy`, `test`, `audit`, and `bench`
+- GitHub PR and task-card issue templates aligned with the documented task flow
+- Copilot customization files for instructions, agents, and task-closure skill
 
-## Suggested GitHub About
+## Repository Structure
 
-Externally planned audiovisual system for composition, compilation, scheduling, runtime execution, and live patch control.
+```text
+.
+├── .github/
+│   ├── agents/
+│   ├── instructions/
+│   ├── ISSUE_TEMPLATE/
+│   ├── skills/
+│   ├── workflows/
+│   └── copilot-instructions.md
+├── vidodo-docs/
+│   ├── 00-26 design and planning documents
+│   └── schemas/
+│       └── mcp-tools/
+└── vidodo-src/
+	├── apps/
+	├── crates/
+	├── xtask/
+	├── Cargo.toml
+	└── README.md
+```
 
-## Suggested Topics
+## Current Code Status
 
-`audiovisual`
-`creative-coding`
-`live-performance`
-`music-tech`
-`visual-runtime`
-`rust`
-`python`
-`mcp`
-`json-schema`
-`system-design`
+The codebase is still early-stage, but it is no longer empty.
+
+- `vidodo-src/apps/avctl` provides a minimal smoke CLI with `doctor` and `plan validate` commands
+- `vidodo-src/crates/ir` defines the first shared serializable types for a minimal plan bundle and compiled plan
+- `vidodo-src/crates/validator` and `vidodo-src/crates/compiler` provide a deterministic minimal validation and compile loop
+- `vidodo-src/crates/scheduler`, `trace`, `storage`, and `patch-manager` provide placeholder domain modules with basic tests
+- `vidodo-src/xtask` centralizes the workspace quality gate and command workflow
+
+This scaffold is intended to support the first real task-card implementations rather than represent finished runtime behavior.
+
+## Default Rust Workflow
+
+Run from `vidodo-src/`:
+
+- `cargo fmt --all`
+- `cargo fmt --all --check`
+- `cargo clippy --workspace --all-targets --all-features -- -D warnings`
+- `cargo test --workspace --all-targets`
+- `cargo audit`
+- `cargo bench --workspace`
+- `cargo xtask ci`
+
+## Copilot-Driven Workflow
+
+This repository is set up to support a Copilot-driven, task-card-based build process.
+
+- Workspace instructions live in `.github/copilot-instructions.md`
+- Task closure rules are encoded in `.github/instructions/task-card-flow.instructions.md`
+- Rust workspace defaults are encoded in `.github/instructions/rust-workspace.instructions.md`
+- Custom agents support task execution and Rust quality-gate validation
+- The `task-closure-loop` skill defines the fixed minimal closure process for WSA/WSB/WSC-style work
 
 ## Roadmap
 
 1. Finalize schemas for planning, runtime, trace, and patch artifacts.
-2. Establish the monorepo implementation skeleton in `vidodo-src/`.
-3. Build the first CLI and capability-layer prototypes.
+2. Expand the initial Rust scaffold into real task-card implementations.
+3. Build the first schema, validator, and compiler deliverables from Workstream A and C.
 4. Implement the artifact store and validation pipeline.
 5. Prove the Phase 0 end-to-end loop.
 

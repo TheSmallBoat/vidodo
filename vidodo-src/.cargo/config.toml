@@ -1,0 +1,9 @@
+[alias]
+bench-ci = "xtask bench"
+ci = "xtask ci"
+fmt-check = "xtask fmt-check"
+lint = "xtask clippy"
+xtask = "run -p xtask --"
+
+[build]
+target-dir = "target"
