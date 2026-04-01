@@ -2,7 +2,7 @@
 
 日期：2026-04-01
 状态：Draft
-前置阅读：02-视听系统产品定位与规划方案书.md，03-外部规划与介入机制顶层设计书.md，04-音频与视觉运行时事件协议与数据结构.md
+前置阅读：../01-总览与定位/02-视听系统产品定位与规划方案书.md，../01-总览与定位/03-外部规划与介入机制顶层设计书.md，04-音频与视觉运行时事件协议与数据结构.md
 
 ## 1. 文档目的
 
@@ -194,6 +194,12 @@ SetPlan 是外部规划者提交的最高层规划对象，用于描述作品或
 
 AudioDsl 描述音频层意图，不直接暴露底层 DSP 图细节。
 
+对于空间扬声器矩阵场景，AudioDsl 还应允许表达：
+
+- output_backend_hint
+- route_group_ref
+- speaker_matrix_topology_ref
+
 ```json
 {
   "type": "audio_dsl",
@@ -210,6 +216,9 @@ AudioDsl 描述音频层意图，不直接暴露底层 DSP 图细节。
         "quantize": "bar",
         "max_simultaneous": 1
       },
+      "output_backend_hint": "spatial_speaker_matrix_backend",
+      "route_group_ref": "outer-ring-drones",
+      "speaker_matrix_topology_ref": "stage-a-v1",
       "automation": [
         {
           "param": "gain_db",
@@ -228,6 +237,13 @@ AudioDsl 描述音频层意图，不直接暴露底层 DSP 图细节。
 
 VisualDsl 描述场景、材质输入与参数轨迹。
 
+对于多视角空间显示装置，VisualDsl 还应允许显式声明：
+
+- output_backend
+- view_group_ref
+- display_topology_ref
+- calibration_profile_ref
+
 ```json
 {
   "type": "visual_dsl",
@@ -237,6 +253,10 @@ VisualDsl 描述场景、材质输入与参数轨迹。
     {
       "scene_id": "corridor_low",
       "program_ref": "glsl/corridor_main",
+      "output_backend": "spatial_multiview_backend",
+      "view_group_ref": "corridor-rig-a",
+      "display_topology_ref": "display-wall-a",
+      "calibration_profile_ref": "install-a-v1",
       "inputs": {
         "texture_refs": ["tex/fog-01"],
         "buffer_graph": "graph/corridor-a"
@@ -364,6 +384,8 @@ Performance IR 是调度器直接消费的音频执行对象。
 - rollback_token
 - resource_hint
 - patch_origin
+- output_backend_hint
+- route_set_ref
 
 示例：
 
@@ -401,11 +423,115 @@ Visual IR 是视觉侧的可执行对象，结构与 Performance IR 对齐，但
 - program_ref
 - uniform_set
 - camera_state
+- output_backend
+- view_group_ref
+- display_topology_ref
+- calibration_profile_ref
 - duration_beats
 - blend_mode
 - semantic_dependency
 - gpu_cost_hint
 - fallback_scene_id
+
+### 5.5 Output Topology IR Objects
+
+当系统需要表达多视角视觉输出或离散扬声器空间输出时，应把装置拓扑和路由对象提升为正式 IR，而不是把它们埋在注释或运行时私有配置里。
+
+#### DisplayTopology
+
+```json
+{
+  "type": "display_topology",
+  "id": "display-wall-a",
+  "backend": "spatial_multiview_backend",
+  "display_endpoints": [
+    {
+      "display_id": "display-01",
+      "role": "left",
+      "width": 1280,
+      "height": 720
+    },
+    {
+      "display_id": "display-02",
+      "role": "right",
+      "width": 1280,
+      "height": 720
+    }
+  ]
+}
+```
+
+#### ViewGroup
+
+```json
+{
+  "type": "view_group",
+  "id": "corridor-rig-a",
+  "scene_ref": "corridor_low",
+  "display_topology_ref": "display-wall-a",
+  "views": [
+    {
+      "view_id": "view-left",
+      "camera_id": "cam-left-01",
+      "display_id": "display-01"
+    },
+    {
+      "view_id": "view-right",
+      "camera_id": "cam-right-01",
+      "display_id": "display-02"
+    }
+  ]
+}
+```
+
+#### SpeakerMatrixTopology
+
+```json
+{
+  "type": "speaker_matrix_topology",
+  "id": "stage-a-v1",
+  "backend": "spatial_speaker_matrix_backend",
+  "speaker_endpoints": [
+    {
+      "speaker_id": "spk-left-front-01",
+      "role": "left_front",
+      "channel_ref": 1
+    },
+    {
+      "speaker_id": "spk-right-front-01",
+      "role": "right_front",
+      "channel_ref": 2
+    }
+  ]
+}
+```
+
+#### RouteSet
+
+```json
+{
+  "type": "route_set",
+  "id": "outer-ring-drones",
+  "topology_ref": "stage-a-v1",
+  "routes": [
+    {
+      "source_ref": "layer-drone-a",
+      "route_mode": "discrete",
+      "speaker_group": [
+        "spk-left-front-01",
+        "spk-right-front-01"
+      ]
+    }
+  ]
+}
+```
+
+这四类对象的角色分别是：
+
+- `display_topology`：描述视觉显示端点集合
+- `view_group`：描述同一母场景的多视角输出集合
+- `speaker_matrix_topology`：描述离散扬声器矩阵端点集合
+- `route_set`：描述声音对象到扬声器集合的空间路由结果
 
 ## 6. Executable IR 字段草案
 
@@ -454,6 +580,10 @@ Show State Snapshot 是执行期共享上下文，不应由外部直接伪造。
 - patch
 - active_audio_layers
 - active_visual_scene
+- active_view_group
+- active_route_group
+- visual_output
+- audio_output
 - resource_budget
 - health
 
@@ -500,6 +630,10 @@ Patch Plan 是 Executable IR 的特化对象，用于承接已经通过验证的
 - layer_id
 - op
 - asset_id
+- output_backend
+- route_mode
+- route_set_ref
+- speaker_group
 - gain_db
 - duration_beats
 - filter
@@ -514,6 +648,10 @@ Patch Plan 是 Executable IR 的特化对象，用于承接已经通过验证的
 - program_ref
 - uniform_updates
 - camera_state
+- output_backend
+- view_group_ref
+- display_topology_ref
+- multiview_set
 - blend
 - duration_beats
 - semantic_state

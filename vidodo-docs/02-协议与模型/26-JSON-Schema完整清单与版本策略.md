@@ -2,7 +2,7 @@
 
 日期：2026-04-01
 状态：Draft
-前置阅读：05-DSL与IR字段定义草案.md，04-音频与视觉运行时事件协议与数据结构.md，07-追踪回放与评估数据模型.md，10-CLI命令清单与MCP工具Schema.md，23-错误码与Diagnostics字典.md，24-工作任务卡与开发里程碑.md
+前置阅读：05-DSL与IR字段定义草案.md，04-音频与视觉运行时事件协议与数据结构.md，07-追踪回放与评估数据模型.md，10-CLI命令清单与MCP工具Schema.md，23-错误码与Diagnostics字典.md，../04-测试与工程执行/24-工作任务卡与开发里程碑.md
 
 ## 1. 文档目的
 
@@ -78,7 +78,7 @@ schemas/{category}/{object-name}.v{major}.json
 | --- | --- | --- | --- | --- |
 | set-plan.v0.json | av.planning.set-plan.v0 | show_id、mode、goal、asset_pool_refs、sections[]、constraints_ref、delivery | 05 §4.1 | WSA-02 |
 | audio-dsl.v0.json | av.planning.audio-dsl.v0 | show_id、layers[]（layer_id、role、source_strategy、asset_candidates、entry_rules、automation） | 05 §4.2 | WSA-03 |
-| visual-dsl.v0.json | av.planning.visual-dsl.v0 | show_id、scenes[]（scene_id、program_ref、inputs、semantic_binding、uniform_defaults） | 05 §4.3 | WSA-04 |
+| visual-dsl.v0.json | av.planning.visual-dsl.v0 | show_id、scenes[]（scene_id、program_ref、output_backend、view_group_ref、display_topology_ref、inputs、semantic_binding、uniform_defaults） | 05 §4.3 | WSA-04 |
 | constraint-set.v0.json | av.planning.constraint-set.v0 | locked_sections、max_audio_layers、max_gpu_peak、allow_hard_cut、allowed_patch_scopes、banned_assets、required_tags、delivery_requirements | 05 §4.4 | WSA-05 |
 | plan-submission.v0.json | av.planning.plan-submission.v0 | type、version、submitted_by、show_id、mode、inputs（set_plan、audio_dsl、visual_dsl、constraints） | 04 §9.1 | WSA-02 |
 
@@ -99,9 +99,13 @@ schemas/{category}/{object-name}.v{major}.json
 | asset-ir.v0.json | av.ir.asset-ir.v0 | asset_kind、locator、format、analysis、capabilities | 05 §5.1 | WSA-06 |
 | structure-ir.v0.json | av.ir.structure-ir.v0 | sections[]（section_id、order、span、targets、locks）、transitions[] | 05 §5.2 | WSA-07 |
 | performance-ir.v0.json | av.ir.performance-ir.v0 | performance_action[]（action_id、layer_id、op、target_asset_id、musical_time、duration_beats、quantize、priority、rollback_token、resource_hint） | 05 §5.3 | WSA-07 |
-| visual-ir.v0.json | av.ir.visual-ir.v0 | visual_action[]（visual_action_id、scene_id、program_ref、uniform_set、camera_state、duration_beats、blend_mode、gpu_cost_hint、fallback_scene_id） | 05 §5.4 | WSA-07 |
+| visual-ir.v0.json | av.ir.visual-ir.v0 | visual_action[]（visual_action_id、scene_id、program_ref、uniform_set、camera_state、output_backend、view_group_ref、display_topology_ref、duration_beats、blend_mode、gpu_cost_hint、fallback_scene_id） | 05 §5.4 | WSA-07 |
+| display-topology.v0.json | av.ir.display-topology.v0 | backend、display_endpoints[]、display roles、resolution、window placement | 05 §5.5 | WSA-07 |
+| view-group.v0.json | av.ir.view-group.v0 | scene_ref、display_topology_ref、views[]（view_id、camera_id、display_id） | 05 §5.5 | WSA-07 |
+| speaker-matrix-topology.v0.json | av.ir.speaker-matrix-topology.v0 | backend、speaker_endpoints[]、roles、device/channel mapping | 05 §5.5 | WSA-07 |
+| route-set.v0.json | av.ir.route-set.v0 | topology_ref、routes[]（source_ref、route_mode、speaker_group） | 05 §5.5 | WSA-07 |
 | timeline-entry.v0.json | av.ir.timeline-entry.v0 | id、show_id、revision、channel、target_ref、effective_window、scheduler（lookahead_ms、priority、conflict_group）、guards | 05 §6.1 | WSA-08 |
-| show-state-snapshot.v0.json | av.ir.show-state-snapshot.v0 | show_id、revision、mode、time、semantic、transition、patch、active_audio_layers、active_visual_scene、resource_budget、health | 05 §6.2, 04 §5.2 | WSA-08 |
+| show-state-snapshot.v0.json | av.ir.show-state-snapshot.v0 | show_id、revision、mode、time、semantic、transition、patch、active_audio_layers、active_visual_scene、active_view_group、active_route_group、visual_output、audio_output、resource_budget、health | 05 §6.2, 04 §5.2 | WSA-08 |
 | compile-record.v0.json | av.ir.compile-record.v0 | compiler_run_id、base_submission_id、input_revision、output_revision、status、warnings、artifacts | 07 §4.2, 18 §4.5 | WSA-07 |
 | revision-record.v0.json | av.ir.revision-record.v0 | revision、show_id、base_revision、status、artifact_refs、created_by | 18 §5.3 | WSA-07 |
 
@@ -120,8 +124,8 @@ schemas/{category}/{object-name}.v{major}.json
 | event-header.v0.json | av.runtime.event-header.v0 | event_id、show_id、revision、kind、source、musical_time、scheduler_time_ms、wallclock_hint_ms、priority、causation_id、replay_token | 04 §6.2, 05 §7.1 | WSA-11 |
 | transport-event.v0.json | av.runtime.transport-event.v0 | op（play、pause、seek、stop） | 04 §6.1 | WSA-11 |
 | timing-event.v0.json | av.runtime.timing-event.v0 | phrase、section、tempo、downbeat | 04 §7.1 | WSA-11 |
-| audio-event.v0.json | av.runtime.audio-event.v0 | layer_id、op、gain_db、duration_beats、filter | 04 §7.2 | WSA-11 |
-| visual-event.v0.json | av.runtime.visual-event.v0 | scene_id、shader_program、uniforms、duration_beats、blend | 04 §7.3 | WSA-11 |
+| audio-event.v0.json | av.runtime.audio-event.v0 | layer_id、op、output_backend、route_mode、route_set_ref、speaker_group、gain_db、duration_beats、filter | 04 §7.2 | WSA-11 |
+| visual-event.v0.json | av.runtime.visual-event.v0 | scene_id、shader_program、output_backend、view_group、display_topology、calibration_profile、uniforms、views[]、duration_beats、blend | 04 §7.3 | WSA-11 |
 | semantic-event.v0.json | av.runtime.semantic-event.v0 | energy、density、tension、intent | 04 §7.4 | WSA-11 |
 | patch-event.v0.json | av.runtime.patch-event.v0 | patch_id、scope、effective_revision、fallback_revision | 04 §7.5 | WSA-11 |
 | audio-analysis-summary.v0.json | av.runtime.audio-analysis-summary.v0 | window_ms、rms、crest、spectral_centroid、low/mid/high_band、transient_density、onset | 04 §8.2 | WSA-11 |
@@ -262,20 +266,20 @@ Golden output 用于回归测试，变更需显式审批。
 | common | 6 |
 | planning | 5 |
 | asset | 5 |
-| ir | 8 |
+| ir | 12 |
 | patch | 3 |
 | runtime | 8 |
 | trace | 11 |
 | link | 2 |
 | audio | 3 |
 | capability | 4 |
-| **合计** | **55** |
+| **合计** | **59** |
 
-加上已有的 `schemas/mcp-tools/av-tool-registry.v0.json`，总计 **56** 个 schema 文件。
+加上已有的 `schemas/mcp-tools/av-tool-registry.v0.json`，总计 **60** 个 schema 文件。
 
 ## 7. 结论
 
-本清单覆盖了设计文档 04-20 中定义的所有结构化对象。55 个 schema 文件按三个优先级分批交付：
+本清单覆盖了设计文档 04-20、27、28 中定义的主要结构化对象。59 个 schema 文件按三个优先级分批交付：
 
 1. **P0**（M0 里程碑）：13 个核心 schema，编码启动前置。
 2. **P1**（M1-M5 期间）：随各 Workstream 按需交付。
