@@ -1,0 +1,71 @@
+{
+    "$schema": "https://json-schema.org/draft/2020-12/schema",
+    "$id": "av.capability.adapter-plugin-manifest.v0",
+    "title": "Adapter Plugin Manifest",
+    "description": "Manifest for a hardware adapter plugin bound to the unified backend contract.",
+    "type": "object",
+    "required": [
+        "plugin_id",
+        "plugin_kind",
+        "backend_kind",
+        "version",
+        "capabilities"
+    ],
+    "properties": {
+        "plugin_id": {
+            "type": "string"
+        },
+        "plugin_kind": {
+            "type": "string",
+            "enum": [
+                "visual_output",
+                "audio_output",
+                "lighting_output",
+                "instrument"
+            ]
+        },
+        "backend_kind": {
+            "type": "string"
+        },
+        "version": {
+            "type": "string"
+        },
+        "capabilities": {
+            "type": "array",
+            "items": {
+                "type": "string"
+            },
+            "minItems": 1
+        },
+        "target_topology_types": {
+            "type": "array",
+            "items": {
+                "type": "string"
+            }
+        },
+        "health_contract": {
+            "type": "object",
+            "properties": {
+                "reports_ack": {
+                    "type": "boolean"
+                },
+                "reports_status": {
+                    "type": "boolean"
+                },
+                "supports_degrade_mode": {
+                    "type": "boolean"
+                }
+            },
+            "additionalProperties": false
+        },
+        "status": {
+            "type": "string",
+            "enum": [
+                "ready",
+                "degraded",
+                "offline"
+            ]
+        }
+    },
+    "additionalProperties": false
+}

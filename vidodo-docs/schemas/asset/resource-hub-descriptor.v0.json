@@ -1,0 +1,83 @@
+{
+    "$schema": "https://json-schema.org/draft/2020-12/schema",
+    "$id": "av.asset.resource-hub-descriptor.v0",
+    "title": "Resource Hub Descriptor",
+    "description": "Descriptor for an external resource hub that publishes versioned media or preset resources.",
+    "type": "object",
+    "required": [
+        "hub_id",
+        "resource_kind",
+        "version",
+        "locator",
+        "provides"
+    ],
+    "properties": {
+        "hub_id": {
+            "type": "string"
+        },
+        "resource_kind": {
+            "type": "string",
+            "enum": [
+                "audio_asset_hub",
+                "glsl_scene_hub",
+                "scene_model_hub",
+                "lighting_preset_hub",
+                "instrument_preset_hub",
+                "texture_hub",
+                "analysis_profile_hub"
+            ]
+        },
+        "version": {
+            "type": "string"
+        },
+        "locator": {
+            "type": "string"
+        },
+        "provides": {
+            "type": "array",
+            "items": {
+                "type": "string"
+            },
+            "minItems": 1
+        },
+        "compatibility": {
+            "type": "object",
+            "properties": {
+                "runtime": {
+                    "type": "array",
+                    "items": {
+                        "type": "string"
+                    }
+                },
+                "backends": {
+                    "type": "array",
+                    "items": {
+                        "type": "string"
+                    }
+                },
+                "schema_versions": {
+                    "type": "array",
+                    "items": {
+                        "type": "string"
+                    }
+                }
+            },
+            "additionalProperties": false
+        },
+        "status": {
+            "type": "string",
+            "enum": [
+                "available",
+                "degraded",
+                "offline"
+            ]
+        },
+        "tags": {
+            "type": "array",
+            "items": {
+                "type": "string"
+            }
+        }
+    },
+    "additionalProperties": false
+}

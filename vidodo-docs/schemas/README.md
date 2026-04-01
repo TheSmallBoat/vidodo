@@ -18,6 +18,7 @@
   - `constraint-set.v0.json`
 - `asset/`
   - `asset-record.v0.json`
+  - `resource-hub-descriptor.v0.json`
 - `ir/`
   - `asset-ir.v0.json`
   - `structure-ir.v0.json`
@@ -32,6 +33,11 @@
   - `event-header.v0.json`
 - `mcp-tools/`
   - `av-tool-registry.v0.json`
+- `capability/`
+  - `adapter-plugin-manifest.v0.json`
+- `lighting/`
+  - `lighting-topology.v0.json`
+  - `cue-set.v0.json`
 
 这批文件的目标是先把命名、目录、`$id`、`$ref` 和 required 字段框架固定下来。
 
@@ -55,6 +61,7 @@
 1. `ir/show-state-snapshot.v0.json`、`ir/compile-record.v0.json`、`ir/revision-record.v0.json`
 2. `trace/` 的 event / resource / replay / evaluation 系列 schema
 3. `asset/` 的 `ingestion-*`、`analysis-*` 系列 schema
-4. `audio/`、`link/`、`capability/` 分类
+4. `audio/`、`link/`、`capability/` 其余分类
+5. `lighting/` 与运行时灯光事件相关 schema
 
 当前所有 `.json` 文件已经通过基础 JSON 语法校验。

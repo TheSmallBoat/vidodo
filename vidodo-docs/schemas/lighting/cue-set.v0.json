@@ -1,0 +1,69 @@
+{
+    "$schema": "https://json-schema.org/draft/2020-12/schema",
+    "$id": "av.lighting.cue-set.v0",
+    "title": "Cue Set",
+    "description": "Distributed lighting cue plan bound to a lighting topology.",
+    "type": "object",
+    "required": [
+        "cue_set_id",
+        "topology_ref",
+        "entries"
+    ],
+    "properties": {
+        "cue_set_id": {
+            "type": "string"
+        },
+        "topology_ref": {
+            "type": "string"
+        },
+        "entries": {
+            "type": "array",
+            "items": {
+                "type": "object",
+                "required": [
+                    "source_ref",
+                    "fixture_group"
+                ],
+                "properties": {
+                    "source_ref": {
+                        "type": "string"
+                    },
+                    "fixture_group": {
+                        "type": "array",
+                        "items": {
+                            "type": "string"
+                        },
+                        "minItems": 1
+                    },
+                    "intensity": {
+                        "type": "number",
+                        "minimum": 0,
+                        "maximum": 1
+                    },
+                    "color": {
+                        "type": "array",
+                        "items": {
+                            "type": "number",
+                            "minimum": 0,
+                            "maximum": 1
+                        },
+                        "minItems": 3,
+                        "maxItems": 3
+                    },
+                    "fade_beats": {
+                        "type": "number",
+                        "minimum": 0
+                    },
+                    "motion_preset": {
+                        "type": "string"
+                    },
+                    "policy": {
+                        "type": "string"
+                    }
+                },
+                "additionalProperties": false
+            }
+        }
+    },
+    "additionalProperties": false
+}

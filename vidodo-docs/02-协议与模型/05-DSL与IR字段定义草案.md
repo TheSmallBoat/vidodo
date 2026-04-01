@@ -533,6 +533,93 @@ Visual IR 是视觉侧的可执行对象，结构与 Performance IR 对齐，但
 - `speaker_matrix_topology`：描述离散扬声器矩阵端点集合
 - `route_set`：描述声音对象到扬声器集合的空间路由结果
 
+#### LightingTopology
+
+当系统需要表达离散式分布式灯光装置时，也应把灯具拓扑提升为正式对象：
+
+```json
+{
+  "type": "lighting_topology",
+  "id": "lighting-grid-a",
+  "backend": "spatial_lighting_matrix_backend",
+  "fixture_endpoints": [
+    {
+      "fixture_id": "fx-up-left-03",
+      "role": "upper_left_fill",
+      "device_ref": "lighting-node-a",
+      "universe": 2,
+      "address": 145
+    }
+  ]
+}
+```
+
+#### CueSet
+
+灯光 cue 结果也应被提升为正式对象，而不是散落在控制台预设或私有运行时状态中：
+
+```json
+{
+  "type": "cue_set",
+  "id": "cue-drop-a-v3",
+  "topology_ref": "lighting-grid-a",
+  "entries": [
+    {
+      "source_ref": "scene/drop_a",
+      "fixture_group": ["fx-up-left-03", "fx-front-center-01"],
+      "intensity": 0.82,
+      "fade_beats": 4
+    }
+  ]
+}
+```
+
+#### AdapterPluginManifest
+
+当系统通过统一协议接入设备后端时，应存在一个正式的插件声明对象：
+
+```json
+{
+  "type": "adapter_plugin_manifest",
+  "id": "plugin.visual.spatial_multiview.install-a.v0",
+  "plugin_kind": "visual_output",
+  "backend_kind": "spatial_multiview_backend",
+  "version": "0.1",
+  "capabilities": ["multiview", "calibrated_display", "health_report"],
+  "target_topology_types": ["display_topology"]
+}
+```
+
+#### ResourceHubDescriptor
+
+同样，外部资源 HUB 也应存在正式的描述对象：
+
+```json
+{
+  "type": "resource_hub_descriptor",
+  "id": "hub.glsl.stage-scenes.v0",
+  "resource_kind": "glsl_scene_hub",
+  "version": "0.1",
+  "locator": "hub://glsl/stage-scenes",
+  "provides": ["shader_program", "scene_kernel", "texture_binding"],
+  "compatibility": {
+    "runtime": ["visual_runtime"],
+    "backends": ["flat_display_backend", "spatial_multiview_backend"]
+  }
+}
+```
+
+至此，输出与边界对象至少包括：
+
+- `display_topology`
+- `view_group`
+- `speaker_matrix_topology`
+- `route_set`
+- `lighting_topology`
+- `cue_set`
+- `adapter_plugin_manifest`
+- `resource_hub_descriptor`
+
 ## 6. Executable IR 字段草案
 
 ### 6.1 Unified Timeline Entry
@@ -582,8 +669,12 @@ Show State Snapshot 是执行期共享上下文，不应由外部直接伪造。
 - active_visual_scene
 - active_view_group
 - active_route_group
+- active_cue_set
 - visual_output
 - audio_output
+- lighting_output
+- adapter_plugins
+- resource_hubs
 - resource_budget
 - health
 
@@ -639,6 +730,8 @@ Patch Plan 是 Executable IR 的特化对象，用于承接已经通过验证的
 - filter
 - quantize_anchor
 - fallback_op
+- adapter_plugin_ref
+- resource_hub_refs
 
 ### 7.3 Visual Runtime Payload
 
@@ -656,6 +749,8 @@ Patch Plan 是 Executable IR 的特化对象，用于承接已经通过验证的
 - duration_beats
 - semantic_state
 - fallback_scene_id
+- adapter_plugin_ref
+- resource_hub_refs
 
 ## 8. 字段兼容性与演进策略
 

@@ -1,0 +1,85 @@
+{
+    "$schema": "https://json-schema.org/draft/2020-12/schema",
+    "$id": "av.lighting.lighting-topology.v0",
+    "title": "Lighting Topology",
+    "description": "Physical and logical topology for distributed lighting output backends.",
+    "type": "object",
+    "required": [
+        "topology_id",
+        "backend",
+        "fixture_endpoints"
+    ],
+    "properties": {
+        "topology_id": {
+            "type": "string"
+        },
+        "backend": {
+            "type": "string"
+        },
+        "calibration_profile": {
+            "type": "string"
+        },
+        "fixture_endpoints": {
+            "type": "array",
+            "items": {
+                "type": "object",
+                "required": [
+                    "fixture_id",
+                    "role",
+                    "device_ref"
+                ],
+                "properties": {
+                    "fixture_id": {
+                        "type": "string"
+                    },
+                    "role": {
+                        "type": "string"
+                    },
+                    "device_ref": {
+                        "type": "string"
+                    },
+                    "universe": {
+                        "type": "integer",
+                        "minimum": 0
+                    },
+                    "address": {
+                        "type": "integer",
+                        "minimum": 1
+                    },
+                    "position": {
+                        "type": "array",
+                        "items": {
+                            "type": "number"
+                        },
+                        "minItems": 3,
+                        "maxItems": 3
+                    },
+                    "orientation": {
+                        "type": "array",
+                        "items": {
+                            "type": "number"
+                        },
+                        "minItems": 3,
+                        "maxItems": 3
+                    },
+                    "capabilities": {
+                        "type": "array",
+                        "items": {
+                            "type": "string"
+                        }
+                    },
+                    "status": {
+                        "type": "string",
+                        "enum": [
+                            "available",
+                            "degraded",
+                            "offline"
+                        ]
+                    }
+                },
+                "additionalProperties": false
+            }
+        }
+    },
+    "additionalProperties": false
+}

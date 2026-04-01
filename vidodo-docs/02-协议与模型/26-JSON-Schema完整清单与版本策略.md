@@ -87,6 +87,7 @@ schemas/{category}/{object-name}.v{major}.json
 | 文件名 | $id | 内容 | 来源文档 | 任务卡 |
 | --- | --- | --- | --- | --- |
 | asset-record.v0.json | av.asset.asset-record.v0 | asset_id、asset_kind、content_hash、raw_locator、normalized_locator、status、analysis_refs、derived_refs、tags、warm_status、readiness | 06 §5.1, 17 §6.3 | WSA-06 |
+| resource-hub-descriptor.v0.json | av.asset.resource-hub-descriptor.v0 | hub_id、resource_kind、version、locator、provides、compatibility、status | 05 §5.5, 30 §5.3 | WSA-06 |
 | ingestion-candidate.v0.json | av.asset.ingestion-candidate.v0 | candidate_id、path、declared_kind、size_bytes、modified_at | 06 §4.2 | WSA-06 |
 | ingestion-run.v0.json | av.asset.ingestion-run.v0 | ingestion_run_id、source、mode、started_at、completed_at、discovered、published、reused、failed | 06 §5.2 | WSA-06 |
 | analysis-job.v0.json | av.asset.analysis-job.v0 | analysis_job_id、asset_id、analyzer、analyzer_version、params_hash、status、cache_key、result_ref | 06 §5.3 | WSA-06 |
@@ -109,7 +110,14 @@ schemas/{category}/{object-name}.v{major}.json
 | compile-record.v0.json | av.ir.compile-record.v0 | compiler_run_id、base_submission_id、input_revision、output_revision、status、warnings、artifacts | 07 §4.2, 18 §4.5 | WSA-07 |
 | revision-record.v0.json | av.ir.revision-record.v0 | revision、show_id、base_revision、status、artifact_refs、created_by | 18 §5.3 | WSA-07 |
 
-### 3.5 patch —— 补丁相关对象
+### 3.5 lighting —— 灯光拓扑与 cue 对象
+
+| 文件名 | $id | 内容 | 来源文档 | 任务卡 |
+| --- | --- | --- | --- | --- |
+| lighting-topology.v0.json | av.lighting.lighting-topology.v0 | backend、fixture_endpoints[]、roles、device / universe / address mapping | 05 §5.5, 29 §9.1 | WSA-11 |
+| cue-set.v0.json | av.lighting.cue-set.v0 | topology_ref、entries[]（source_ref、fixture_group、intensity、color、fade_beats） | 05 §5.5, 29 §9.2 | WSA-11 |
+
+### 3.6 patch —— 补丁相关对象
 
 | 文件名 | $id | 内容 | 来源文档 | 任务卡 |
 | --- | --- | --- | --- | --- |
@@ -117,7 +125,7 @@ schemas/{category}/{object-name}.v{major}.json
 | patch-ticket.v0.json | av.patch.patch-ticket.v0 | ticket_id、patch_id、state、effective_revision、fallback_revision、audit_ref | MCP schema $defs | WSA-09 |
 | patch-decision.v0.json | av.patch.patch-decision.v0 | patch_id、base_revision、candidate_revision、decision、window、scope、authorization_ref、fallback_revision、reasons | 07 §4.4 | WSA-09 |
 
-### 3.6 runtime —— 运行时事件
+### 3.7 runtime —— 运行时事件
 
 | 文件名 | $id | 内容 | 来源文档 | 任务卡 |
 | --- | --- | --- | --- | --- |
@@ -130,7 +138,7 @@ schemas/{category}/{object-name}.v{major}.json
 | patch-event.v0.json | av.runtime.patch-event.v0 | patch_id、scope、effective_revision、fallback_revision | 04 §7.5 | WSA-11 |
 | audio-analysis-summary.v0.json | av.runtime.audio-analysis-summary.v0 | window_ms、rms、crest、spectral_centroid、low/mid/high_band、transient_density、onset | 04 §8.2 | WSA-11 |
 
-### 3.7 trace —— 追踪与评估
+### 3.8 trace —— 追踪与评估
 
 | 文件名 | $id | 内容 | 来源文档 | 任务卡 |
 | --- | --- | --- | --- | --- |
@@ -146,14 +154,14 @@ schemas/{category}/{object-name}.v{major}.json
 | checkpoint-snapshot.v0.json | av.trace.checkpoint-snapshot.v0 | checkpoint_id、show_id、revision、bar、show_state_ref、active_assets、rollback_ready | 07 §5.3 | WSA-10 |
 | revision-diff.v0.json | av.trace.revision-diff.v0 | from_revision、to_revision、changes、impact | 07 §7.1 | WSA-10 |
 
-### 3.8 link —— 视听联动
+### 3.9 link —— 视听联动
 
 | 文件名 | $id | 内容 | 来源文档 | 任务卡 |
 | --- | --- | --- | --- | --- |
 | link-binding.v0.json | av.link.link-binding.v0 | link_id、mode、source、target、mapping、activation、policy | 12 §3.3 | WSA-11 |
 | link-state.v0.json | av.link.link-state.v0 | show_id、revision、link_state（mode、active_scene、structural_anchor、semantic_bindings、signal_bindings_enabled、safety_mode） | 12 §8.1 | WSA-11 |
 
-### 3.9 audio —— 音频输出与乐器绑定
+### 3.10 audio —— 音频输出与乐器绑定
 
 | 文件名 | $id | 内容 | 来源文档 | 任务卡 |
 | --- | --- | --- | --- | --- |
@@ -161,7 +169,7 @@ schemas/{category}/{object-name}.v{major}.json
 | instrument-binding.v0.json | av.audio.instrument-binding.v0 | binding_id、binding_type、target_backend、preset_ref、midi_channel、latency_profile | 20 §7.2 | WSA-11 |
 | backend-capability.v0.json | av.audio.backend-capability.v0 | backend_id、backend_kind、status、supports[]、latency_class | 20 §7.3 | WSA-11 |
 
-### 3.10 capability —— 能力层对象
+### 3.11 capability —— 能力层对象
 
 | 文件名 | $id | 内容 | 来源文档 | 任务卡 |
 | --- | --- | --- | --- | --- |
@@ -169,6 +177,7 @@ schemas/{category}/{object-name}.v{major}.json
 | capability-response.v0.json | av.capability.capability-response.v0 | （使用 response-envelope.v0.json） | 16 §5.2 | WSA-12 |
 | operation-ticket.v0.json | av.capability.operation-ticket.v0 | operation_id、request_id、capability、state、started_at、updated_at | 16 §5.3 | WSA-12 |
 | capability-descriptor.v0.json | av.capability.capability-descriptor.v0 | capability、input_schema、output_schema、execution_mode、idempotency、authorization、target_service | 16 §7.1 | WSA-12 |
+| adapter-plugin-manifest.v0.json | av.capability.adapter-plugin-manifest.v0 | plugin_id、plugin_kind、backend_kind、version、capabilities、target_topology_types、health_contract | 05 §5.5, 30 §4.2 | WSA-12 |
 
 ---
 
@@ -199,11 +208,13 @@ schemas/{category}/{object-name}.v{major}.json
 | 优先级 | Schema | 理由 |
 | --- | --- | --- |
 | P1 | asset/ingestion-*, analysis-* | WSB 素材接入任务依赖 |
+| P1 | asset/resource-hub-descriptor | 资源 HUB 边界与 Registry 依赖 |
 | P1 | ir/show-state-snapshot | WSD Scheduler 依赖 |
 | P1 | ir/compile-record, revision-record | WSC Revision Manager 依赖 |
 | P1 | runtime/timing-event, audio-event, visual-event | WSD 事件发布依赖 |
 | P1 | patch/patch-ticket, patch-decision | WSF Patch Manager 依赖 |
 | P1 | trace/event-record, resource-sample | WSE Trace Writer 依赖 |
+| P1 | capability/adapter-plugin-manifest | 统一 adapter plugin 协议边界 |
 
 ### 4.3 Phase 0 末尾完成（M6 前）
 
@@ -213,6 +224,7 @@ schemas/{category}/{object-name}.v{major}.json
 | P2 | trace/evaluation-*, replay-*, checkpoint-* | Evaluation 占位与 Replay 预研 |
 | P2 | link/* | 视听联动集成测试 |
 | P2 | audio/* | 音频后端绑定集成测试 |
+| P2 | lighting/* | 灯光拓扑与 cue 集成测试 |
 | P2 | capability/* | MCP adapter 集成 |
 
 ---
@@ -265,21 +277,22 @@ Golden output 用于回归测试，变更需显式审批。
 | --- | --- |
 | common | 6 |
 | planning | 5 |
-| asset | 5 |
+| asset | 6 |
 | ir | 12 |
+| lighting | 2 |
 | patch | 3 |
 | runtime | 8 |
 | trace | 11 |
 | link | 2 |
 | audio | 3 |
-| capability | 4 |
-| **合计** | **59** |
+| capability | 5 |
+| **合计** | **63** |
 
-加上已有的 `schemas/mcp-tools/av-tool-registry.v0.json`，总计 **60** 个 schema 文件。
+加上已有的 `schemas/mcp-tools/av-tool-registry.v0.json`，总计 **64** 个 schema 文件。
 
 ## 7. 结论
 
-本清单覆盖了设计文档 04-20、27、28 中定义的主要结构化对象。59 个 schema 文件按三个优先级分批交付：
+本清单覆盖了设计文档 04-20、27、28、29、30 中定义的主要结构化对象。63 个 schema 文件按三个优先级分批交付：
 
 1. **P0**（M0 里程碑）：13 个核心 schema，编码启动前置。
 2. **P1**（M1-M5 期间）：随各 Workstream 按需交付。
