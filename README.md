@@ -8,7 +8,7 @@ The project defines a deterministic system that accepts structured plans and liv
 
 - Current stage: design-first repository with a normalized Phase 0 execution baseline
 - Main contents: `vidodo-docs/` design documents, root-level `schemas/`, root-level `scripts/`, controlled `tests/fixtures/`, GitHub workflow templates, and a Rust workspace under `vidodo-src/`
-- Implementation status: `vidodo-src/` now carries the single Phase 0 mainline via `avctl + compiler + scheduler + fake audio/visual backends + patch + trace`
+- Implementation status: `vidodo-src/` now carries the single Phase 0 mainline plus a minimal asset ingestion and analysis-cache loop via `avctl`
 
 ## Core Idea
 
@@ -41,9 +41,9 @@ The codebase is still early-stage, but the repository now has a real closed-loop
 
 - `schemas/` is the canonical schema root for Phase 0 artifacts
 - `scripts/schema-validate.sh` validates root schemas against controlled fixtures in `tests/schema/`
-- `scripts/init-artifact-store.sh` initializes the root artifact store used by local and CI smoke flows
-- `tests/fixtures/` contains the controlled plan, asset, and patch fixtures used by the mainline
-- `vidodo-src/apps/avctl` now exposes the Phase 0 operator flow: `plan validate`, `compile run`, `run start/status`, `patch check/submit/rollback`, `trace show/events`, and `doctor`
+- `scripts/init-artifact-store.sh` initializes the root artifact store, including raw/normalized asset layers and analysis cache directories
+- `tests/fixtures/` contains the controlled plan, asset, patch, and import fixtures used by the current loops
+- `vidodo-src/apps/avctl` now exposes the operator flow for `asset ingest/list/show`, `plan validate`, `compile run`, `run start/status`, `patch check/submit/rollback`, `trace show/events`, and `doctor`
 - `vidodo-src/crates/ir`, `validator`, `compiler`, `scheduler`, `patch-manager`, `trace`, and `storage` implement the deterministic compile -> patch -> fake runtime -> trace loop
 - `vidodo-src/apps/core-service`, `mcp-adapter`, and `visual-runtime` remain deliberately deferred placeholders until this single mainline is exhausted
 
@@ -61,6 +61,7 @@ Run from the repository root:
 
 - `./scripts/schema-validate.sh`
 - `./scripts/init-artifact-store.sh`
+- `./tests/e2e/asset_ingest_smoke.sh`
 
 Run from `vidodo-src/`:
 
@@ -71,12 +72,13 @@ Run from `vidodo-src/`:
 - `cargo audit`
 - `cargo bench --workspace`
 - `cargo xtask ci`
+- `cargo run -p avctl -- asset ingest --source-dir ../tests/fixtures/imports/minimal-audio-pack --declared-kind audio_loop --tags fixture,smoke`
 - `cargo run -p avctl -- doctor`
 
 ## Roadmap
 
 1. Expand fixture and negative coverage from the current P0 schema set to the remaining schema catalog.
-2. Add the asset ingestion path after the current fixture-backed mainline is stable.
+2. Expand the minimal asset ingestion path from the current deterministic file-copy + cache-probe baseline to richer normalizers and analyzers.
 3. Harden scheduler resync, degraded mode, and trace detail around longer-running scenarios.
 4. Decide whether `core-service` should remain a library-driven local loop or split into a dedicated service.
 5. Only then widen MCP, lighting, and distributed deployment scope.

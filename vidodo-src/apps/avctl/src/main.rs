@@ -11,7 +11,10 @@ use vidodo_ir::{
 };
 use vidodo_patch_manager::{apply_patch, check_patch, rollback_patch};
 use vidodo_scheduler::{RunStatusRecord, simulate_run};
-use vidodo_storage::{ArtifactLayout, discover_repo_root, read_json, slug, write_json};
+use vidodo_storage::{
+    ArtifactLayout, AssetIngestRequest, AssetQuery, discover_repo_root, get_asset, ingest_assets,
+    list_asset_analysis, list_asset_jobs, list_assets, read_json, slug, write_json,
+};
 use vidodo_trace::{load_events, load_manifest, manifest_path, write_trace};
 use vidodo_validator::validate_plan;
 
@@ -42,6 +45,7 @@ fn run() -> Result<(), ExitCode> {
 
     match args[0].as_str() {
         "doctor" => handle_doctor(&context),
+        "asset" => handle_asset(&context, &args[1..]),
         "plan" => handle_plan(&context, &args[1..]),
         "compile" => handle_compile(&context, &args[1..]),
         "run" => handle_run(&context, &args[1..]),
@@ -193,6 +197,149 @@ fn handle_doctor(context: &CommandContext) -> Result<(), ExitCode> {
             "run `avctl trace show --run-id <run-id>` to inspect the generated trace",
         )],
     )
+}
+
+fn handle_asset(context: &CommandContext, args: &[String]) -> Result<(), ExitCode> {
+    match args {
+        [command, rest @ ..] if command == "ingest" => {
+            let capability = "asset.ingest";
+            let request_id = "req-asset-ingest";
+            let source_dir = required_flag(rest, "--source-dir")
+                .map_err(|message| emit_error(capability, request_id, "CLI-070", message))?;
+            let declared_kind = required_flag(rest, "--declared-kind")
+                .map_err(|message| emit_error(capability, request_id, "CLI-071", message))?;
+            let tags = optional_flag(rest, "--tags")
+                .map(|value| parse_csv_list(&value))
+                .unwrap_or_default();
+
+            let report = ingest_assets(
+                &context.layout,
+                &AssetIngestRequest {
+                    source: resolve_path(context, &source_dir),
+                    declared_kind,
+                    tags,
+                },
+            )
+            .map_err(|diagnostics| {
+                print_response(
+                    capability,
+                    request_id,
+                    "error",
+                    json!({}),
+                    diagnostics,
+                    vec![],
+                    vec![],
+                )
+                .err()
+                .unwrap()
+            })?;
+
+            let report_path = context.layout.ingestion_report_path(&report.run.ingestion_run_id);
+            let registry_path = context.layout.asset_registry_file();
+            print_response(
+                capability,
+                request_id,
+                "ok",
+                json!({
+                    "ingestion_run_id": report.run.ingestion_run_id,
+                    "source": report.run.source,
+                    "discovered": report.run.discovered,
+                    "published": report.run.published,
+                    "reused": report.run.reused,
+                    "analysis_jobs": report.analysis_jobs.len(),
+                    "assets": report
+                        .assets
+                        .iter()
+                        .map(|asset| asset.asset_id.clone())
+                        .collect::<Vec<_>>()
+                }),
+                vec![],
+                vec![
+                    relative_to_repo(context, &report_path),
+                    relative_to_repo(context, &registry_path),
+                ],
+                vec![String::from(
+                    "run `avctl asset list [--kind <kind>] [--tag <tag>]` to inspect published assets",
+                )],
+            )
+        }
+        [command, rest @ ..] if command == "list" => {
+            let capability = "asset.list";
+            let request_id = "req-asset-list";
+            let assets = list_assets(
+                &context.layout,
+                &AssetQuery {
+                    asset_kind: optional_flag(rest, "--kind"),
+                    tag: optional_flag(rest, "--tag"),
+                },
+            )
+            .map_err(|message| emit_error(capability, request_id, "CLI-072", message))?;
+
+            print_response(
+                capability,
+                request_id,
+                "ok",
+                json!({
+                    "count": assets.len(),
+                    "assets": assets
+                }),
+                vec![],
+                vec![relative_to_repo(context, &context.layout.asset_registry_file())],
+                vec![],
+            )
+        }
+        [command, rest @ ..] if command == "show" => {
+            let capability = "asset.show";
+            let request_id = "req-asset-show";
+            let asset_id = required_flag(rest, "--asset-id")
+                .map_err(|message| emit_error(capability, request_id, "CLI-073", message))?;
+            let asset = get_asset(&context.layout, &asset_id)
+                .map_err(|message| emit_error(capability, request_id, "CLI-074", message))?
+                .ok_or_else(|| {
+                    emit_error(
+                        capability,
+                        request_id,
+                        "CLI-075",
+                        format!("asset {} was not found", asset_id),
+                    )
+                })?;
+            let analysis_entries = list_asset_analysis(&context.layout, &asset_id)
+                .map_err(|message| emit_error(capability, request_id, "CLI-076", message))?;
+            let analysis_jobs = list_asset_jobs(&context.layout, &asset_id)
+                .map_err(|message| emit_error(capability, request_id, "CLI-077", message))?;
+
+            let mut artifacts =
+                vec![relative_to_repo(context, &context.layout.asset_registry_file())];
+            if let Some(raw_locator) = &asset.raw_locator {
+                artifacts.push(raw_locator.clone());
+            }
+            if let Some(normalized_locator) = &asset.normalized_locator {
+                artifacts.push(normalized_locator.clone());
+            }
+            for entry in &analysis_entries {
+                artifacts.push(entry.payload_ref.clone());
+            }
+
+            print_response(
+                capability,
+                request_id,
+                "ok",
+                json!({
+                    "asset": asset,
+                    "analysis_entries": analysis_entries,
+                    "analysis_jobs": analysis_jobs
+                }),
+                vec![],
+                artifacts,
+                vec![],
+            )
+        }
+        _ => Err(emit_usage_error(
+            "asset",
+            "req-asset",
+            "usage: avctl asset ingest --source-dir <path> --declared-kind <kind> [--tags tag1,tag2] | avctl asset list [--kind <kind>] [--tag <tag>] | avctl asset show --asset-id <id>",
+        )),
+    }
 }
 
 fn handle_plan(context: &CommandContext, args: &[String]) -> Result<(), ExitCode> {
@@ -638,6 +785,10 @@ fn optional_flag(args: &[String], flag: &str) -> Option<String> {
     args.windows(2).find(|window| window[0] == flag).map(|window| window[1].clone())
 }
 
+fn parse_csv_list(value: &str) -> Vec<String> {
+    value.split(',').map(str::trim).filter(|item| !item.is_empty()).map(String::from).collect()
+}
+
 fn parse_u64(value: &str, flag: &str) -> Result<u64, String> {
     value.parse::<u64>().map_err(|error| format!("{} expects an unsigned integer: {error}", flag))
 }
@@ -688,6 +839,9 @@ fn emit_usage_error(capability: &str, request_id: &str, usage: &str) -> ExitCode
 
 fn print_usage() {
     eprintln!("avctl doctor");
+    eprintln!("avctl asset ingest --source-dir <path> --declared-kind <kind> [--tags tag1,tag2]");
+    eprintln!("avctl asset list [--kind <kind>] [--tag <tag>]");
+    eprintln!("avctl asset show --asset-id <id>");
     eprintln!("avctl plan validate --plan-dir <path> [--assets-file <path>]");
     eprintln!("avctl compile run --plan-dir <path> [--assets-file <path>]");
     eprintln!("avctl run start --show-id <show-id> --revision <revision>");

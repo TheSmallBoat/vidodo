@@ -283,6 +283,78 @@ pub struct AssetRecord {
     pub readiness: Option<String>,
 }
 
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct IngestionCandidate {
+    pub candidate_id: String,
+    pub path: String,
+    pub declared_kind: String,
+    pub size_bytes: u64,
+    pub modified_at: u64,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct IngestionRun {
+    pub ingestion_run_id: String,
+    pub source: String,
+    pub mode: String,
+    pub status: String,
+    pub started_at: u64,
+    pub completed_at: u64,
+    pub discovered: u32,
+    pub published: u32,
+    pub reused: u32,
+    pub failed: u32,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct AnalysisJob {
+    pub analysis_job_id: String,
+    pub asset_id: String,
+    pub analyzer: String,
+    pub analyzer_version: String,
+    pub params_hash: String,
+    pub status: String,
+    pub cache_key: String,
+    pub result_ref: String,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct AnalysisCacheEntry {
+    pub cache_key: String,
+    pub asset_id: String,
+    pub analyzer: String,
+    pub analyzer_version: String,
+    pub input_fingerprint: String,
+    pub dependency_fingerprint: String,
+    pub created_at: u64,
+    pub status: String,
+    pub payload_ref: String,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct BeatTrackAnalysis {
+    pub asset_id: String,
+    pub analyzer: String,
+    pub analyzer_version: String,
+    pub estimated_tempo_bpm: u32,
+    pub downbeat_bar: u32,
+    pub estimated_bars: u32,
+    pub source_size_bytes: u64,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct AssetIngestReport {
+    pub run: IngestionRun,
+    #[serde(default)]
+    pub candidates: Vec<IngestionCandidate>,
+    #[serde(default)]
+    pub assets: Vec<AssetRecord>,
+    #[serde(default)]
+    pub analysis_jobs: Vec<AnalysisJob>,
+    #[serde(default)]
+    pub analysis_entries: Vec<AnalysisCacheEntry>,
+}
+
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub struct PlanBundle {
     pub show_id: String,

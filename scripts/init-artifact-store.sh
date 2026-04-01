@@ -7,7 +7,12 @@ db_path="$artifact_root/registry.db"
 
 mkdir -p \
   "$artifact_root/assets" \
+  "$artifact_root/assets/raw" \
+  "$artifact_root/assets/normalized" \
+  "$artifact_root/assets/registry" \
   "$artifact_root/analysis" \
+  "$artifact_root/analysis/cache" \
+  "$artifact_root/analysis/reports" \
   "$artifact_root/revisions" \
   "$artifact_root/traces" \
   "$artifact_root/exports"
@@ -27,6 +32,12 @@ CREATE TABLE IF NOT EXISTS assets (
   readiness TEXT
 );
 
+CREATE TABLE IF NOT EXISTS asset_tags (
+  asset_id TEXT NOT NULL,
+  tag TEXT NOT NULL,
+  PRIMARY KEY (asset_id, tag)
+);
+
 CREATE TABLE IF NOT EXISTS ingestion_runs (
   ingestion_run_id TEXT PRIMARY KEY,
   source TEXT NOT NULL,
@@ -44,6 +55,14 @@ CREATE TABLE IF NOT EXISTS analysis_jobs (
   status TEXT NOT NULL,
   cache_key TEXT,
   result_ref TEXT
+);
+
+CREATE TABLE IF NOT EXISTS analysis_entries (
+  cache_key TEXT PRIMARY KEY,
+  asset_id TEXT NOT NULL,
+  analyzer TEXT NOT NULL,
+  status TEXT NOT NULL,
+  payload_ref TEXT NOT NULL
 );
 SQL
 

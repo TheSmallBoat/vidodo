@@ -79,8 +79,24 @@ jobs:
       - name: run phase0 smoke
         run: ./tests/e2e/phase0_smoke.sh
 
+  asset-ingest-smoke:
+    needs: [schema-validation, quality-gate]
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v6.0.2
+      - uses: dtolnay/rust-toolchain@stable
+      - uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: vidodo-src
+      - name: make scripts executable
+        run: chmod +x scripts/*.sh tests/e2e/*.sh
+      - name: initialize artifact store
+        run: ./scripts/init-artifact-store.sh
+      - name: run asset ingest smoke
+        run: ./tests/e2e/asset_ingest_smoke.sh
+
   bench:
-    needs: [quality-gate, phase0-smoke]
+    needs: [quality-gate, phase0-smoke, asset-ingest-smoke]
     if: github.event_name == 'workflow_dispatch' || github.ref == 'refs/heads/main'
     runs-on: ubuntu-latest
     defaults:
