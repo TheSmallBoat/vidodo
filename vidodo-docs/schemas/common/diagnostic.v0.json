@@ -1,0 +1,59 @@
+{
+    "$schema": "https://json-schema.org/draft/2020-12/schema",
+    "$id": "av.common.diagnostic.v0",
+    "title": "Diagnostic",
+    "description": "Structured machine-consumable diagnostic record.",
+    "type": "object",
+    "required": [
+        "code",
+        "namespace",
+        "severity",
+        "message",
+        "retryable"
+    ],
+    "properties": {
+        "code": {
+            "type": "string"
+        },
+        "namespace": {
+            "type": "string"
+        },
+        "severity": {
+            "type": "string",
+            "enum": [
+                "error",
+                "warning",
+                "info",
+                "hint"
+            ]
+        },
+        "message": {
+            "type": "string"
+        },
+        "target": {
+            "type": "object",
+            "properties": {
+                "object_type": {
+                    "type": "string"
+                },
+                "object_id": {
+                    "type": "string"
+                },
+                "field": {
+                    "type": "string"
+                }
+            },
+            "additionalProperties": false
+        },
+        "retryable": {
+            "type": "boolean"
+        },
+        "details": {
+            "type": "object"
+        },
+        "suggestion": {
+            "type": "string"
+        }
+    },
+    "additionalProperties": false
+}

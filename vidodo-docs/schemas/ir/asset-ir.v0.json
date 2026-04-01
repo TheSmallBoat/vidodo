@@ -1,0 +1,41 @@
+{
+    "$schema": "https://json-schema.org/draft/2020-12/schema",
+    "$id": "av.ir.asset-ir.v0",
+    "title": "Asset IR",
+    "description": "Normalized asset object consumed by compile and validation steps.",
+    "type": "object",
+    "required": [
+        "type",
+        "id",
+        "asset_kind",
+        "locator",
+        "format",
+        "analysis",
+        "capabilities"
+    ],
+    "properties": {
+        "type": {
+            "type": "string",
+            "const": "asset_ir"
+        },
+        "id": {
+            "type": "string"
+        },
+        "asset_kind": {
+            "type": "string"
+        },
+        "locator": {
+            "type": "object"
+        },
+        "format": {
+            "type": "object"
+        },
+        "analysis": {
+            "type": "object"
+        },
+        "capabilities": {
+            "type": "object"
+        }
+    },
+    "additionalProperties": false
+}

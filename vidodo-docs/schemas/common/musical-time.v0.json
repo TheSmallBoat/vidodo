@@ -1,0 +1,49 @@
+{
+    "$schema": "https://json-schema.org/draft/2020-12/schema",
+    "$id": "av.common.musical-time.v0",
+    "title": "Musical Time",
+    "description": "Shared musical structure time object.",
+    "type": "object",
+    "required": [
+        "beat",
+        "bar",
+        "beat_in_bar",
+        "phrase",
+        "section",
+        "tempo",
+        "time_signature"
+    ],
+    "properties": {
+        "beat": {
+            "type": "number"
+        },
+        "bar": {
+            "type": "integer",
+            "minimum": 0
+        },
+        "beat_in_bar": {
+            "type": "number"
+        },
+        "phrase": {
+            "type": "integer",
+            "minimum": 0
+        },
+        "section": {
+            "type": "string"
+        },
+        "tempo": {
+            "type": "number",
+            "exclusiveMinimum": 0
+        },
+        "time_signature": {
+            "type": "array",
+            "minItems": 2,
+            "maxItems": 2,
+            "items": {
+                "type": "integer",
+                "minimum": 1
+            }
+        }
+    },
+    "additionalProperties": false
+}

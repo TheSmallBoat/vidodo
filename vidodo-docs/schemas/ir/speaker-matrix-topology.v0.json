@@ -1,0 +1,71 @@
+{
+    "$schema": "https://json-schema.org/draft/2020-12/schema",
+    "$id": "av.ir.speaker-matrix-topology.v0",
+    "title": "Speaker Matrix Topology",
+    "description": "Physical speaker layout and channel mapping for discrete spatial audio output.",
+    "type": "object",
+    "required": [
+        "topology_id",
+        "backend",
+        "speaker_endpoints"
+    ],
+    "properties": {
+        "topology_id": {
+            "type": "string"
+        },
+        "backend": {
+            "type": "string"
+        },
+        "calibration_profile": {
+            "type": "string"
+        },
+        "speaker_endpoints": {
+            "type": "array",
+            "items": {
+                "type": "object",
+                "required": [
+                    "speaker_id",
+                    "role",
+                    "device_ref",
+                    "channel_ref"
+                ],
+                "properties": {
+                    "speaker_id": {
+                        "type": "string"
+                    },
+                    "role": {
+                        "type": "string"
+                    },
+                    "device_ref": {
+                        "type": "string"
+                    },
+                    "channel_ref": {
+                        "type": "integer",
+                        "minimum": 0
+                    },
+                    "position": {
+                        "type": "array",
+                        "items": {
+                            "type": "number"
+                        },
+                        "minItems": 3,
+                        "maxItems": 3
+                    },
+                    "gain_trim_db": {
+                        "type": "number"
+                    },
+                    "status": {
+                        "type": "string",
+                        "enum": [
+                            "available",
+                            "degraded",
+                            "offline"
+                        ]
+                    }
+                },
+                "additionalProperties": false
+            }
+        }
+    },
+    "additionalProperties": false
+}

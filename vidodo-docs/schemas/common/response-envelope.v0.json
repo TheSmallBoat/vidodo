@@ -1,0 +1,55 @@
+{
+    "$schema": "https://json-schema.org/draft/2020-12/schema",
+    "$id": "av.common.response-envelope.v0",
+    "title": "Response Envelope",
+    "description": "Structured capability response envelope shared by CLI and MCP surfaces.",
+    "type": "object",
+    "required": [
+        "status",
+        "capability",
+        "request_id",
+        "data",
+        "diagnostics",
+        "artifacts",
+        "next_actions"
+    ],
+    "properties": {
+        "status": {
+            "type": "string",
+            "enum": [
+                "ok",
+                "accepted",
+                "warning",
+                "error"
+            ]
+        },
+        "capability": {
+            "type": "string"
+        },
+        "request_id": {
+            "type": "string"
+        },
+        "data": {
+            "type": "object"
+        },
+        "diagnostics": {
+            "type": "array",
+            "items": {
+                "$ref": "./diagnostic.v0.json"
+            }
+        },
+        "artifacts": {
+            "type": "array",
+            "items": {
+                "type": "string"
+            }
+        },
+        "next_actions": {
+            "type": "array",
+            "items": {
+                "type": "string"
+            }
+        }
+    },
+    "additionalProperties": false
+}

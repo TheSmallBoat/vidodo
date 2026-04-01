@@ -1,0 +1,58 @@
+{
+    "$schema": "https://json-schema.org/draft/2020-12/schema",
+    "$id": "av.asset.asset-record.v0",
+    "title": "Asset Record",
+    "description": "Published asset record in the registry.",
+    "type": "object",
+    "required": [
+        "asset_id",
+        "asset_kind",
+        "content_hash",
+        "status"
+    ],
+    "properties": {
+        "asset_id": {
+            "type": "string"
+        },
+        "asset_kind": {
+            "type": "string"
+        },
+        "content_hash": {
+            "type": "string"
+        },
+        "raw_locator": {
+            "type": "string"
+        },
+        "normalized_locator": {
+            "type": "string"
+        },
+        "status": {
+            "type": "string"
+        },
+        "analysis_refs": {
+            "type": "array",
+            "items": {
+                "type": "string"
+            }
+        },
+        "derived_refs": {
+            "type": "array",
+            "items": {
+                "type": "string"
+            }
+        },
+        "tags": {
+            "type": "array",
+            "items": {
+                "type": "string"
+            }
+        },
+        "warm_status": {
+            "type": "string"
+        },
+        "readiness": {
+            "type": "string"
+        }
+    },
+    "additionalProperties": false
+}

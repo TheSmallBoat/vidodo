@@ -1,0 +1,63 @@
+{
+    "$schema": "https://json-schema.org/draft/2020-12/schema",
+    "$id": "av.ir.structure-ir.v0",
+    "title": "Structure IR",
+    "description": "Normalized structural composition state.",
+    "type": "object",
+    "required": [
+        "type",
+        "id",
+        "show_id",
+        "sections",
+        "transitions"
+    ],
+    "properties": {
+        "type": {
+            "type": "string",
+            "const": "structure_ir"
+        },
+        "id": {
+            "type": "string"
+        },
+        "show_id": {
+            "type": "string"
+        },
+        "sections": {
+            "type": "array",
+            "items": {
+                "type": "object",
+                "required": [
+                    "section_id",
+                    "order",
+                    "span"
+                ],
+                "properties": {
+                    "section_id": {
+                        "type": "string"
+                    },
+                    "order": {
+                        "type": "integer",
+                        "minimum": 0
+                    },
+                    "span": {
+                        "type": "object"
+                    },
+                    "targets": {
+                        "type": "object"
+                    },
+                    "locks": {
+                        "type": "object"
+                    }
+                },
+                "additionalProperties": false
+            }
+        },
+        "transitions": {
+            "type": "array",
+            "items": {
+                "type": "object"
+            }
+        }
+    },
+    "additionalProperties": false
+}

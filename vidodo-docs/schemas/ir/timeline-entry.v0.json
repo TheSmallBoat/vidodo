@@ -1,0 +1,75 @@
+{
+    "$schema": "https://json-schema.org/draft/2020-12/schema",
+    "$id": "av.ir.timeline-entry.v0",
+    "title": "Timeline Entry",
+    "description": "Unified executable timeline entry.",
+    "type": "object",
+    "required": [
+        "type",
+        "id",
+        "show_id",
+        "revision",
+        "channel",
+        "target_ref",
+        "effective_window",
+        "scheduler",
+        "guards"
+    ],
+    "properties": {
+        "type": {
+            "type": "string",
+            "const": "timeline_entry"
+        },
+        "id": {
+            "type": "string"
+        },
+        "show_id": {
+            "type": "string"
+        },
+        "revision": {
+            "type": "integer",
+            "minimum": 0
+        },
+        "channel": {
+            "type": "string",
+            "enum": [
+                "audio",
+                "visual",
+                "semantic",
+                "patch",
+                "transport"
+            ]
+        },
+        "target_ref": {
+            "type": "string"
+        },
+        "effective_window": {
+            "type": "object"
+        },
+        "scheduler": {
+            "type": "object",
+            "required": [
+                "lookahead_ms",
+                "priority",
+                "conflict_group"
+            ],
+            "properties": {
+                "lookahead_ms": {
+                    "type": "integer",
+                    "minimum": 0
+                },
+                "priority": {
+                    "type": "integer"
+                },
+                "conflict_group": {
+                    "type": "string"
+                }
+            },
+            "additionalProperties": false
+        },
+        "guards": {
+            "type": "object"
+        }
+    },
+    "additionalProperties": false
+}

@@ -1,0 +1,54 @@
+{
+    "$schema": "https://json-schema.org/draft/2020-12/schema",
+    "$id": "av.planning.constraint-set.v0",
+    "title": "Constraint Set",
+    "description": "Planner-provided constraint and policy set.",
+    "type": "object",
+    "required": [
+        "locked_sections",
+        "max_audio_layers",
+        "max_gpu_peak",
+        "allowed_patch_scopes"
+    ],
+    "properties": {
+        "locked_sections": {
+            "type": "array",
+            "items": {
+                "type": "string"
+            }
+        },
+        "max_audio_layers": {
+            "type": "integer",
+            "minimum": 0
+        },
+        "max_gpu_peak": {
+            "type": "number",
+            "minimum": 0
+        },
+        "allow_hard_cut": {
+            "type": "boolean"
+        },
+        "allowed_patch_scopes": {
+            "type": "array",
+            "items": {
+                "type": "string"
+            }
+        },
+        "banned_assets": {
+            "type": "array",
+            "items": {
+                "type": "string"
+            }
+        },
+        "required_tags": {
+            "type": "array",
+            "items": {
+                "type": "string"
+            }
+        },
+        "delivery_requirements": {
+            "type": "object"
+        }
+    },
+    "additionalProperties": false
+}

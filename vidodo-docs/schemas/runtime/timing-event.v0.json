@@ -1,0 +1,50 @@
+{
+    "$schema": "https://json-schema.org/draft/2020-12/schema",
+    "$id": "av.runtime.timing-event.v0",
+    "title": "Timing Event",
+    "description": "Runtime structural timing payload.",
+    "type": "object",
+    "required": [
+        "phrase",
+        "section",
+        "tempo",
+        "downbeat"
+    ],
+    "properties": {
+        "phrase": {
+            "type": "integer",
+            "minimum": 0
+        },
+        "section": {
+            "type": "string"
+        },
+        "tempo": {
+            "type": "number",
+            "exclusiveMinimum": 0
+        },
+        "downbeat": {
+            "type": "boolean"
+        },
+        "bar": {
+            "type": "integer",
+            "minimum": 1
+        },
+        "beat": {
+            "type": "number",
+            "minimum": 0
+        },
+        "time_signature": {
+            "type": "array",
+            "items": {
+                "type": "integer",
+                "minimum": 1
+            },
+            "minItems": 2,
+            "maxItems": 2
+        },
+        "transition_window_open": {
+            "type": "boolean"
+        }
+    },
+    "additionalProperties": false
+}

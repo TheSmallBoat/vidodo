@@ -1,0 +1,88 @@
+{
+    "$schema": "https://json-schema.org/draft/2020-12/schema",
+    "$id": "av.runtime.visual-event.v0",
+    "title": "Visual Event",
+    "description": "Runtime visual scene and view-set payload.",
+    "type": "object",
+    "required": [
+        "scene_id",
+        "shader_program",
+        "output_backend"
+    ],
+    "properties": {
+        "scene_id": {
+            "type": "string"
+        },
+        "shader_program": {
+            "type": "string"
+        },
+        "output_backend": {
+            "type": "string"
+        },
+        "view_group": {
+            "type": "string"
+        },
+        "display_topology": {
+            "type": "string"
+        },
+        "calibration_profile": {
+            "type": "string"
+        },
+        "uniforms": {
+            "type": "object"
+        },
+        "views": {
+            "type": "array",
+            "items": {
+                "type": "object",
+                "required": [
+                    "view_id",
+                    "camera_id",
+                    "display_id"
+                ],
+                "properties": {
+                    "view_id": {
+                        "type": "string"
+                    },
+                    "camera_id": {
+                        "type": "string"
+                    },
+                    "display_id": {
+                        "type": "string"
+                    },
+                    "viewport": {
+                        "type": "object",
+                        "properties": {
+                            "width": {
+                                "type": "integer",
+                                "minimum": 1
+                            },
+                            "height": {
+                                "type": "integer",
+                                "minimum": 1
+                            },
+                            "x": {
+                                "type": "integer",
+                                "minimum": 0
+                            },
+                            "y": {
+                                "type": "integer",
+                                "minimum": 0
+                            }
+                        },
+                        "additionalProperties": false
+                    }
+                },
+                "additionalProperties": false
+            }
+        },
+        "duration_beats": {
+            "type": "number",
+            "minimum": 0
+        },
+        "blend": {
+            "type": "string"
+        }
+    },
+    "additionalProperties": false
+}

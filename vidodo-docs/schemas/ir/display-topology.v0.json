@@ -1,0 +1,94 @@
+{
+    "$schema": "https://json-schema.org/draft/2020-12/schema",
+    "$id": "av.ir.display-topology.v0",
+    "title": "Display Topology",
+    "description": "Physical and logical display topology for visual output backends.",
+    "type": "object",
+    "required": [
+        "topology_id",
+        "backend",
+        "display_endpoints"
+    ],
+    "properties": {
+        "topology_id": {
+            "type": "string"
+        },
+        "backend": {
+            "type": "string"
+        },
+        "calibration_profile": {
+            "type": "string"
+        },
+        "display_endpoints": {
+            "type": "array",
+            "items": {
+                "type": "object",
+                "required": [
+                    "display_id",
+                    "role",
+                    "resolution"
+                ],
+                "properties": {
+                    "display_id": {
+                        "type": "string"
+                    },
+                    "role": {
+                        "type": "string"
+                    },
+                    "system_display_ref": {
+                        "type": "string"
+                    },
+                    "resolution": {
+                        "type": "object",
+                        "required": [
+                            "width",
+                            "height"
+                        ],
+                        "properties": {
+                            "width": {
+                                "type": "integer",
+                                "minimum": 1
+                            },
+                            "height": {
+                                "type": "integer",
+                                "minimum": 1
+                            }
+                        },
+                        "additionalProperties": false
+                    },
+                    "window": {
+                        "type": "object",
+                        "properties": {
+                            "x": {
+                                "type": "integer"
+                            },
+                            "y": {
+                                "type": "integer"
+                            },
+                            "fullscreen": {
+                                "type": "boolean"
+                            },
+                            "borderless": {
+                                "type": "boolean"
+                            }
+                        },
+                        "additionalProperties": false
+                    },
+                    "orientation": {
+                        "type": "string"
+                    },
+                    "position": {
+                        "type": "array",
+                        "items": {
+                            "type": "number"
+                        },
+                        "minItems": 3,
+                        "maxItems": 3
+                    }
+                },
+                "additionalProperties": false
+            }
+        }
+    },
+    "additionalProperties": false
+}

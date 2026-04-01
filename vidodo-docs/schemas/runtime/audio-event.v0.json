@@ -1,0 +1,72 @@
+{
+    "$schema": "https://json-schema.org/draft/2020-12/schema",
+    "$id": "av.runtime.audio-event.v0",
+    "title": "Audio Event",
+    "description": "Runtime audio action payload for layer, route, and backend updates.",
+    "type": "object",
+    "required": [
+        "layer_id",
+        "op",
+        "output_backend"
+    ],
+    "properties": {
+        "layer_id": {
+            "type": "string"
+        },
+        "op": {
+            "type": "string"
+        },
+        "output_backend": {
+            "type": "string"
+        },
+        "route_mode": {
+            "type": "string",
+            "enum": [
+                "bus",
+                "discrete",
+                "group",
+                "object"
+            ]
+        },
+        "route_set_ref": {
+            "type": "string"
+        },
+        "speaker_group": {
+            "type": "array",
+            "items": {
+                "type": "string"
+            }
+        },
+        "gain_db": {
+            "type": "number"
+        },
+        "duration_beats": {
+            "type": "number",
+            "minimum": 0
+        },
+        "filter": {
+            "type": "object",
+            "properties": {
+                "kind": {
+                    "type": "string"
+                },
+                "cutoff_hz": {
+                    "type": "number",
+                    "exclusiveMinimum": 0
+                },
+                "resonance": {
+                    "type": "number",
+                    "minimum": 0
+                }
+            },
+            "additionalProperties": false
+        },
+        "automation": {
+            "type": "object"
+        },
+        "target_asset_id": {
+            "type": "string"
+        }
+    },
+    "additionalProperties": false
+}

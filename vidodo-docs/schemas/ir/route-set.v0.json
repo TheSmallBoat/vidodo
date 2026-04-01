@@ -1,0 +1,64 @@
+{
+    "$schema": "https://json-schema.org/draft/2020-12/schema",
+    "$id": "av.ir.route-set.v0",
+    "title": "Route Set",
+    "description": "Discrete routing plan from runtime sources to speaker groups or endpoints.",
+    "type": "object",
+    "required": [
+        "route_set_id",
+        "topology_ref",
+        "routes"
+    ],
+    "properties": {
+        "route_set_id": {
+            "type": "string"
+        },
+        "topology_ref": {
+            "type": "string"
+        },
+        "routes": {
+            "type": "array",
+            "items": {
+                "type": "object",
+                "required": [
+                    "source_ref",
+                    "route_mode"
+                ],
+                "properties": {
+                    "source_ref": {
+                        "type": "string"
+                    },
+                    "route_mode": {
+                        "type": "string",
+                        "enum": [
+                            "discrete",
+                            "group",
+                            "fanout",
+                            "priority_failover"
+                        ]
+                    },
+                    "speaker_group": {
+                        "type": "array",
+                        "items": {
+                            "type": "string"
+                        }
+                    },
+                    "speaker_refs": {
+                        "type": "array",
+                        "items": {
+                            "type": "string"
+                        }
+                    },
+                    "gain_db": {
+                        "type": "number"
+                    },
+                    "policy": {
+                        "type": "string"
+                    }
+                },
+                "additionalProperties": false
+            }
+        }
+    },
+    "additionalProperties": false
+}

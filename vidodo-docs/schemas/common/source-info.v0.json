@@ -1,0 +1,24 @@
+{
+    "$schema": "https://json-schema.org/draft/2020-12/schema",
+    "$id": "av.common.source-info.v0",
+    "title": "Source Info",
+    "description": "Source metadata for authored or compiled Vidodo objects.",
+    "type": "object",
+    "required": [
+        "kind",
+        "submitted_by",
+        "submission_id"
+    ],
+    "properties": {
+        "kind": {
+            "type": "string"
+        },
+        "submitted_by": {
+            "type": "string"
+        },
+        "submission_id": {
+            "type": "string"
+        }
+    },
+    "additionalProperties": false
+}

@@ -1,0 +1,90 @@
+{
+    "$schema": "https://json-schema.org/draft/2020-12/schema",
+    "$id": "av.planning.audio-dsl.v0",
+    "title": "Audio DSL",
+    "description": "Planner-facing audio layer description.",
+    "type": "object",
+    "required": [
+        "type",
+        "id",
+        "show_id",
+        "layers"
+    ],
+    "properties": {
+        "type": {
+            "type": "string",
+            "const": "audio_dsl"
+        },
+        "id": {
+            "type": "string"
+        },
+        "show_id": {
+            "type": "string"
+        },
+        "layers": {
+            "type": "array",
+            "items": {
+                "type": "object",
+                "required": [
+                    "layer_id",
+                    "role",
+                    "source_strategy",
+                    "entry_rules"
+                ],
+                "properties": {
+                    "layer_id": {
+                        "type": "string"
+                    },
+                    "role": {
+                        "type": "string"
+                    },
+                    "source_strategy": {
+                        "type": "string"
+                    },
+                    "asset_candidates": {
+                        "type": "array",
+                        "items": {
+                            "type": "string"
+                        }
+                    },
+                    "entry_rules": {
+                        "type": "object",
+                        "properties": {
+                            "section_refs": {
+                                "type": "array",
+                                "items": {
+                                    "type": "string"
+                                }
+                            },
+                            "quantize": {
+                                "type": "string"
+                            },
+                            "max_simultaneous": {
+                                "type": "integer",
+                                "minimum": 1
+                            }
+                        },
+                        "additionalProperties": false
+                    },
+                    "output_backend_hint": {
+                        "type": "string"
+                    },
+                    "route_group_ref": {
+                        "type": "string"
+                    },
+                    "speaker_matrix_topology_ref": {
+                        "type": "string"
+                    },
+                    "automation": {
+                        "type": "array",
+                        "items": {
+                            "type": "object"
+                        }
+                    }
+                },
+                "additionalProperties": false
+            }
+        }
+    },
+    "additionalProperties": false
+}

@@ -1,0 +1,43 @@
+{
+    "$schema": "https://json-schema.org/draft/2020-12/schema",
+    "$id": "av.runtime.patch-event.v0",
+    "title": "Patch Event",
+    "description": "Runtime patch lifecycle payload.",
+    "type": "object",
+    "required": [
+        "patch_id",
+        "scope",
+        "effective_revision",
+        "fallback_revision"
+    ],
+    "properties": {
+        "patch_id": {
+            "type": "string"
+        },
+        "scope": {
+            "type": "string"
+        },
+        "effective_revision": {
+            "type": "integer",
+            "minimum": 0
+        },
+        "fallback_revision": {
+            "type": "integer",
+            "minimum": 0
+        },
+        "decision": {
+            "type": "string",
+            "enum": [
+                "proposed",
+                "accepted",
+                "rejected",
+                "applied",
+                "rolled_back"
+            ]
+        },
+        "reason": {
+            "type": "string"
+        }
+    },
+    "additionalProperties": false
+}

@@ -1,0 +1,65 @@
+{
+    "$schema": "https://json-schema.org/draft/2020-12/schema",
+    "$id": "av.ir.visual-ir.v0",
+    "title": "Visual IR",
+    "description": "Executable visual-side actions and scene bindings.",
+    "type": "object",
+    "required": [
+        "visual_actions"
+    ],
+    "properties": {
+        "visual_actions": {
+            "type": "array",
+            "items": {
+                "type": "object",
+                "required": [
+                    "visual_action_id",
+                    "scene_id",
+                    "program_ref"
+                ],
+                "properties": {
+                    "visual_action_id": {
+                        "type": "string"
+                    },
+                    "scene_id": {
+                        "type": "string"
+                    },
+                    "program_ref": {
+                        "type": "string"
+                    },
+                    "uniform_set": {
+                        "type": "object"
+                    },
+                    "camera_state": {
+                        "type": "object"
+                    },
+                    "output_backend": {
+                        "type": "string"
+                    },
+                    "view_group_ref": {
+                        "type": "string"
+                    },
+                    "display_topology_ref": {
+                        "type": "string"
+                    },
+                    "duration_beats": {
+                        "type": "number",
+                        "minimum": 0
+                    },
+                    "blend_mode": {
+                        "type": "string"
+                    },
+                    "gpu_cost_hint": {
+                        "type": "number",
+                        "minimum": 0
+                    },
+                    "fallback_scene_id": {
+                        "type": "string"
+                    }
+                },
+                "additionalProperties": false
+            }
+        }
+    },
+    "additionalProperties": false
+}

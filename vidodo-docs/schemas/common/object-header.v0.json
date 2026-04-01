@@ -1,0 +1,50 @@
+{
+    "$schema": "https://json-schema.org/draft/2020-12/schema",
+    "$id": "av.common.object-header.v0",
+    "title": "Object Header",
+    "description": "Common header shared by first-class Vidodo artifacts.",
+    "type": "object",
+    "required": [
+        "id",
+        "type",
+        "version",
+        "revision",
+        "schema",
+        "source",
+        "provenance"
+    ],
+    "properties": {
+        "id": {
+            "type": "string"
+        },
+        "type": {
+            "type": "string"
+        },
+        "version": {
+            "type": "string"
+        },
+        "revision": {
+            "type": "integer",
+            "minimum": 0
+        },
+        "schema": {
+            "type": "string"
+        },
+        "source": {
+            "$ref": "./source-info.v0.json"
+        },
+        "provenance": {
+            "$ref": "./provenance.v0.json"
+        },
+        "labels": {
+            "type": "array",
+            "items": {
+                "type": "string"
+            }
+        },
+        "annotations": {
+            "type": "object"
+        }
+    },
+    "additionalProperties": false
+}

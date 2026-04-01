@@ -1,0 +1,114 @@
+{
+    "$schema": "https://json-schema.org/draft/2020-12/schema",
+    "$id": "av.planning.set-plan.v0",
+    "title": "Set Plan",
+    "description": "Top-level plan submitted by an external planner.",
+    "type": "object",
+    "required": [
+        "type",
+        "id",
+        "show_id",
+        "mode",
+        "goal",
+        "asset_pool_refs",
+        "sections",
+        "constraints_ref",
+        "delivery"
+    ],
+    "properties": {
+        "type": {
+            "type": "string",
+            "const": "set_plan"
+        },
+        "id": {
+            "type": "string"
+        },
+        "show_id": {
+            "type": "string"
+        },
+        "mode": {
+            "type": "string",
+            "enum": [
+                "live",
+                "offline_render",
+                "rehearsal"
+            ]
+        },
+        "goal": {
+            "type": "object",
+            "required": [
+                "intent"
+            ],
+            "properties": {
+                "intent": {
+                    "type": "string"
+                },
+                "duration_target_sec": {
+                    "type": "number",
+                    "minimum": 0
+                },
+                "style_tags": {
+                    "type": "array",
+                    "items": {
+                        "type": "string"
+                    }
+                }
+            },
+            "additionalProperties": false
+        },
+        "asset_pool_refs": {
+            "type": "array",
+            "items": {
+                "type": "string"
+            }
+        },
+        "sections": {
+            "type": "array",
+            "items": {
+                "type": "object",
+                "required": [
+                    "section_id",
+                    "length_bars"
+                ],
+                "properties": {
+                    "section_id": {
+                        "type": "string"
+                    },
+                    "length_bars": {
+                        "type": "integer",
+                        "minimum": 1
+                    },
+                    "energy_target": {
+                        "type": "number"
+                    },
+                    "density_target": {
+                        "type": "number"
+                    },
+                    "visual_intent": {
+                        "type": "string"
+                    }
+                },
+                "additionalProperties": false
+            }
+        },
+        "constraints_ref": {
+            "type": "string"
+        },
+        "delivery": {
+            "type": "object",
+            "properties": {
+                "render_bundle": {
+                    "type": "boolean"
+                },
+                "trace_bundle": {
+                    "type": "boolean"
+                },
+                "evaluation": {
+                    "type": "boolean"
+                }
+            },
+            "additionalProperties": false
+        }
+    },
+    "additionalProperties": false
+}

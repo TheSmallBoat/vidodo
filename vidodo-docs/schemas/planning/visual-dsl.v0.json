@@ -1,0 +1,66 @@
+{
+    "$schema": "https://json-schema.org/draft/2020-12/schema",
+    "$id": "av.planning.visual-dsl.v0",
+    "title": "Visual DSL",
+    "description": "Planner-facing visual scene description.",
+    "type": "object",
+    "required": [
+        "type",
+        "id",
+        "show_id",
+        "scenes"
+    ],
+    "properties": {
+        "type": {
+            "type": "string",
+            "const": "visual_dsl"
+        },
+        "id": {
+            "type": "string"
+        },
+        "show_id": {
+            "type": "string"
+        },
+        "scenes": {
+            "type": "array",
+            "items": {
+                "type": "object",
+                "required": [
+                    "scene_id",
+                    "program_ref"
+                ],
+                "properties": {
+                    "scene_id": {
+                        "type": "string"
+                    },
+                    "program_ref": {
+                        "type": "string"
+                    },
+                    "output_backend": {
+                        "type": "string"
+                    },
+                    "view_group_ref": {
+                        "type": "string"
+                    },
+                    "display_topology_ref": {
+                        "type": "string"
+                    },
+                    "calibration_profile_ref": {
+                        "type": "string"
+                    },
+                    "inputs": {
+                        "type": "object"
+                    },
+                    "semantic_binding": {
+                        "type": "object"
+                    },
+                    "uniform_defaults": {
+                        "type": "object"
+                    }
+                },
+                "additionalProperties": false
+            }
+        }
+    },
+    "additionalProperties": false
+}

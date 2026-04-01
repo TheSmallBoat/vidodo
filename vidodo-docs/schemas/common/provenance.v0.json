@@ -1,0 +1,27 @@
+{
+    "$schema": "https://json-schema.org/draft/2020-12/schema",
+    "$id": "av.common.provenance.v0",
+    "title": "Provenance",
+    "description": "Provenance chain for compiled or derived objects.",
+    "type": "object",
+    "required": [
+        "plan_id",
+        "compiler_run_id",
+        "parent_ids"
+    ],
+    "properties": {
+        "plan_id": {
+            "type": "string"
+        },
+        "compiler_run_id": {
+            "type": "string"
+        },
+        "parent_ids": {
+            "type": "array",
+            "items": {
+                "type": "string"
+            }
+        }
+    },
+    "additionalProperties": false
+}

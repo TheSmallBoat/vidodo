@@ -1,0 +1,59 @@
+{
+    "$schema": "https://json-schema.org/draft/2020-12/schema",
+    "$id": "av.runtime.event-header.v0",
+    "title": "Runtime Event Header",
+    "description": "Shared header fields for all runtime events.",
+    "type": "object",
+    "required": [
+        "event_id",
+        "show_id",
+        "revision",
+        "kind",
+        "source",
+        "musical_time",
+        "scheduler_time_ms",
+        "wallclock_hint_ms",
+        "priority",
+        "causation_id",
+        "replay_token"
+    ],
+    "properties": {
+        "event_id": {
+            "type": "string"
+        },
+        "show_id": {
+            "type": "string"
+        },
+        "revision": {
+            "type": "integer",
+            "minimum": 0
+        },
+        "kind": {
+            "type": "string"
+        },
+        "source": {
+            "type": "string"
+        },
+        "musical_time": {
+            "$ref": "../common/musical-time.v0.json"
+        },
+        "scheduler_time_ms": {
+            "type": "integer",
+            "minimum": 0
+        },
+        "wallclock_hint_ms": {
+            "type": "integer",
+            "minimum": 0
+        },
+        "priority": {
+            "type": "integer"
+        },
+        "causation_id": {
+            "type": "string"
+        },
+        "replay_token": {
+            "type": "string"
+        }
+    },
+    "additionalProperties": false
+}

@@ -1,0 +1,65 @@
+{
+    "$schema": "https://json-schema.org/draft/2020-12/schema",
+    "$id": "av.ir.performance-ir.v0",
+    "title": "Performance IR",
+    "description": "Executable audio-side performance actions.",
+    "type": "object",
+    "required": [
+        "performance_actions"
+    ],
+    "properties": {
+        "performance_actions": {
+            "type": "array",
+            "items": {
+                "type": "object",
+                "required": [
+                    "action_id",
+                    "layer_id",
+                    "op",
+                    "musical_time"
+                ],
+                "properties": {
+                    "action_id": {
+                        "type": "string"
+                    },
+                    "layer_id": {
+                        "type": "string"
+                    },
+                    "op": {
+                        "type": "string"
+                    },
+                    "target_asset_id": {
+                        "type": "string"
+                    },
+                    "musical_time": {
+                        "$ref": "../common/musical-time.v0.json"
+                    },
+                    "duration_beats": {
+                        "type": "number",
+                        "minimum": 0
+                    },
+                    "quantize": {
+                        "type": "string"
+                    },
+                    "priority": {
+                        "type": "integer"
+                    },
+                    "rollback_token": {
+                        "type": "string"
+                    },
+                    "resource_hint": {
+                        "type": "object"
+                    },
+                    "output_backend_hint": {
+                        "type": "string"
+                    },
+                    "route_set_ref": {
+                        "type": "string"
+                    }
+                },
+                "additionalProperties": false
+            }
+        }
+    },
+    "additionalProperties": false
+}

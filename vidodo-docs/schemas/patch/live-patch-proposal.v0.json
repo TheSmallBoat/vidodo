@@ -1,0 +1,72 @@
+{
+    "$schema": "https://json-schema.org/draft/2020-12/schema",
+    "$id": "av.patch.live-patch-proposal.v0",
+    "title": "Live Patch Proposal",
+    "description": "Bounded live patch proposal against an active or candidate revision.",
+    "type": "object",
+    "required": [
+        "patch_id",
+        "patch_class",
+        "base_revision",
+        "scope",
+        "changes",
+        "fallback_revision"
+    ],
+    "properties": {
+        "patch_id": {
+            "type": "string"
+        },
+        "submitted_by": {
+            "type": "string"
+        },
+        "patch_class": {
+            "type": "string",
+            "enum": [
+                "param",
+                "local_content",
+                "structural",
+                "emergency"
+            ]
+        },
+        "base_revision": {
+            "type": "integer",
+            "minimum": 0
+        },
+        "scope": {
+            "type": "object",
+            "required": [
+                "from_bar",
+                "to_bar",
+                "window"
+            ],
+            "properties": {
+                "from_bar": {
+                    "type": "integer",
+                    "minimum": 0
+                },
+                "to_bar": {
+                    "type": "integer",
+                    "minimum": 0
+                },
+                "window": {
+                    "type": "string"
+                }
+            },
+            "additionalProperties": false
+        },
+        "intent": {
+            "type": "object"
+        },
+        "changes": {
+            "type": "array",
+            "items": {
+                "type": "object"
+            }
+        },
+        "fallback_revision": {
+            "type": "integer",
+            "minimum": 0
+        }
+    },
+    "additionalProperties": false
+}

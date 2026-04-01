@@ -1,0 +1,44 @@
+{
+    "$schema": "https://json-schema.org/draft/2020-12/schema",
+    "$id": "av.runtime.semantic-event.v0",
+    "title": "Semantic Event",
+    "description": "Runtime semantic state payload shared across execution backends.",
+    "type": "object",
+    "required": [
+        "energy",
+        "density",
+        "tension",
+        "intent"
+    ],
+    "properties": {
+        "energy": {
+            "type": "number",
+            "minimum": 0,
+            "maximum": 1
+        },
+        "density": {
+            "type": "number",
+            "minimum": 0,
+            "maximum": 1
+        },
+        "tension": {
+            "type": "number",
+            "minimum": 0,
+            "maximum": 1
+        },
+        "intent": {
+            "type": "string"
+        },
+        "brightness": {
+            "type": "number",
+            "minimum": 0,
+            "maximum": 1
+        },
+        "motion": {
+            "type": "number",
+            "minimum": 0,
+            "maximum": 1
+        }
+    },
+    "additionalProperties": false
+}
