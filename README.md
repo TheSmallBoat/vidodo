@@ -10,17 +10,6 @@ The project defines a deterministic system that accepts structured plans and liv
 - Main contents: product documents, technical design documents, GitHub workflow templates, Copilot harness files, and a minimal Rust implementation skeleton
 - Implementation status: `vidodo-src/` now contains a compilable Rust workspace with placeholder apps, core crates, benchmarks, and workspace automation
 
-## What This Repository Covers
-
-- Product positioning for an externally planned audiovisual system
-- Shared concepts for DSL, IR, timeline, trace, and patch control
-- CLI and MCP capability model design
-- Runtime architecture for audio and visual execution
-- MVP architecture, Phase 0 implementation plan, and engineering workflow guidance
-- Initial JSON Schema artifacts for MCP tool definitions
-- Rust workspace scaffolding for the Phase 0 build loop
-- Copilot-driven task execution rules, custom agents, and quality-gate workflow
-
 ## Core Idea
 
 Vidodo is not positioned as an embedded LLM product, an open-ended AI music generator, or a DAW replacement.
@@ -46,40 +35,6 @@ That means:
 - Structured trace, replay, diagnostics, and bounded patch rollback
 - Design-first monorepo intended to evolve into a Rust + Python implementation
 
-## Current Assets
-
-- 27 planning and design documents in Chinese
-- 1 MCP tool registry schema draft
-- Phase 0 implementation blueprint
-- Development workflow and branching strategy draft
-- A Rust workspace under `vidodo-src/` with apps, crates, `xtask`, benchmark, and lockfile
-- GitHub Actions CI for `fmt-check`, `clippy`, `test`, `audit`, and `bench`
-- GitHub PR and task-card issue templates aligned with the documented task flow
-- Copilot customization files for instructions, agents, and task-closure skill
-
-## Repository Structure
-
-```text
-.
-├── .github/
-│   ├── agents/
-│   ├── instructions/
-│   ├── ISSUE_TEMPLATE/
-│   ├── skills/
-│   ├── workflows/
-│   └── copilot-instructions.md
-├── vidodo-docs/
-│   ├── 00-26 design and planning documents
-│   └── schemas/
-│       └── mcp-tools/
-└── vidodo-src/
-	├── apps/
-	├── crates/
-	├── xtask/
-	├── Cargo.toml
-	└── README.md
-```
-
 ## Current Code Status
 
 The codebase is still early-stage, but it is no longer empty.
@@ -103,16 +58,6 @@ Run from `vidodo-src/`:
 - `cargo audit`
 - `cargo bench --workspace`
 - `cargo xtask ci`
-
-## Copilot-Driven Workflow
-
-This repository is set up to support a Copilot-driven, task-card-based build process.
-
-- Workspace instructions live in `.github/copilot-instructions.md`
-- Task closure rules are encoded in `.github/instructions/task-card-flow.instructions.md`
-- Rust workspace defaults are encoded in `.github/instructions/rust-workspace.instructions.md`
-- Custom agents support task execution and Rust quality-gate validation
-- The `task-closure-loop` skill defines the fixed minimal closure process for WSA/WSB/WSC-style work
 
 ## Roadmap
 
