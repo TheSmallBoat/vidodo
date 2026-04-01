@@ -307,6 +307,17 @@ fn handle_asset(context: &CommandContext, args: &[String]) -> Result<(), ExitCod
                 .map_err(|message| emit_error(capability, request_id, "CLI-076", message))?;
             let analysis_jobs = list_asset_jobs(&context.layout, &asset_id)
                 .map_err(|message| emit_error(capability, request_id, "CLI-077", message))?;
+            let analysis_payloads = analysis_entries
+                .iter()
+                .map(|entry| {
+                    let payload: Value = read_json(&resolve_path(context, &entry.payload_ref))?;
+                    Ok(json!({
+                        "payload_ref": entry.payload_ref,
+                        "payload": payload,
+                    }))
+                })
+                .collect::<Result<Vec<_>, String>>()
+                .map_err(|message| emit_error(capability, request_id, "CLI-078", message))?;
 
             let mut artifacts =
                 vec![relative_to_repo(context, &context.layout.asset_registry_file())];
@@ -327,7 +338,8 @@ fn handle_asset(context: &CommandContext, args: &[String]) -> Result<(), ExitCod
                 json!({
                     "asset": asset,
                     "analysis_entries": analysis_entries,
-                    "analysis_jobs": analysis_jobs
+                    "analysis_jobs": analysis_jobs,
+                    "analysis_payloads": analysis_payloads
                 }),
                 vec![],
                 artifacts,

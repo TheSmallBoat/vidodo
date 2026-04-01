@@ -10,12 +10,27 @@ use serde::Serialize;
 use serde::de::DeserializeOwned;
 use sha2::{Digest, Sha256};
 use vidodo_ir::{
-    AnalysisCacheEntry, AnalysisJob, AssetIngestReport, AssetRecord, BeatTrackAnalysis, Diagnostic,
-    IngestionCandidate, IngestionRun,
+    AnalysisCacheEntry, AnalysisJob, AssetIngestReport, AssetRecord, AudioProbeSummary,
+    BeatTrackAnalysis, Diagnostic, IngestionCandidate, IngestionRun,
 };
 
 const BEAT_TRACK_ANALYZER: &str = "beat_track";
 const BEAT_TRACK_ANALYZER_VERSION: &str = "0.1.0";
+const BEAT_TRACK_PARAMS: &str = "probe=v1;window_ms=10;min_gap_ms=160;supported=wav/pcm_s16le";
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+struct WavFormatSummary {
+    sample_rate_hz: u32,
+    channel_count: u16,
+    bits_per_sample: u16,
+    block_align: u16,
+}
+
+#[derive(Debug, Clone, PartialEq)]
+struct ProbedAudio {
+    summary: AudioProbeSummary,
+    mono_samples: Vec<f32>,
+}
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct ArtifactLayout {
@@ -319,9 +334,11 @@ pub fn ingest_assets(
             )]
         })?;
 
-        let payload = build_beat_track_analysis(&asset_id, bytes.len() as u64, &content_hash);
-        let params_hash = hash_string("{}");
-        let cache_key = build_cache_key(&content_hash, &request.declared_kind, &params_hash);
+        let payload = build_beat_track_analysis(&asset_id, &normalized_path, bytes.len() as u64)
+            .map_err(|message| vec![Diagnostic::error("AST-007", message)])?;
+        let params_hash = hash_string(BEAT_TRACK_PARAMS);
+        let cache_key =
+            build_cache_key(&content_hash, &request.declared_kind, &payload.probe, &params_hash);
         let result_ref = format!("analysis-{}", short_hash(&cache_key));
         let payload_path = layout.analysis_payload_path(&result_ref);
         write_json(&payload_path, &payload).map_err(diagnostic_from_string)?;
@@ -332,7 +349,7 @@ pub fn ingest_assets(
             analyzer: String::from(BEAT_TRACK_ANALYZER),
             analyzer_version: String::from(BEAT_TRACK_ANALYZER_VERSION),
             input_fingerprint: content_hash.clone(),
-            dependency_fingerprint: hash_string("static-deps"),
+            dependency_fingerprint: probe_fingerprint(&payload.probe),
             created_at: unix_timestamp(),
             status: String::from("ready"),
             payload_ref: artifact_ref(layout, &payload_path),
@@ -737,33 +754,271 @@ fn upsert_ingestion_run(layout: &ArtifactLayout, run: &IngestionRun) -> Result<(
 
 fn build_beat_track_analysis(
     asset_id: &str,
-    size_bytes: u64,
-    content_hash: &str,
-) -> BeatTrackAnalysis {
-    let hash_seed = short_hash(content_hash)
-        .bytes()
-        .fold(0_u32, |accumulator, value| accumulator.saturating_add(value as u32));
-    let estimated_tempo_bpm = 110 + (hash_seed % 24);
-    let estimated_bars = ((size_bytes / 128).max(4) as u32).min(64);
+    normalized_path: &Path,
+    source_size_bytes: u64,
+) -> Result<BeatTrackAnalysis, String> {
+    let probed = probe_audio_file(normalized_path)?;
+    let (estimated_tempo_bpm, transient_count) =
+        estimate_tempo_bpm(&probed.mono_samples, probed.summary.sample_rate_hz);
+    let estimated_bars = estimate_bars(probed.summary.duration_ms, estimated_tempo_bpm);
 
-    BeatTrackAnalysis {
+    Ok(BeatTrackAnalysis {
         asset_id: asset_id.to_string(),
         analyzer: String::from(BEAT_TRACK_ANALYZER),
         analyzer_version: String::from(BEAT_TRACK_ANALYZER_VERSION),
+        probe: probed.summary,
         estimated_tempo_bpm,
         downbeat_bar: 1,
         estimated_bars,
-        source_size_bytes: size_bytes,
-    }
+        transient_count,
+        source_size_bytes,
+    })
 }
 
-fn build_cache_key(content_hash: &str, declared_kind: &str, params_hash: &str) -> String {
+fn build_cache_key(
+    content_hash: &str,
+    declared_kind: &str,
+    probe: &AudioProbeSummary,
+    params_hash: &str,
+) -> String {
     format!(
         "acache:{}",
         hash_string(&format!(
-            "{content_hash}:{declared_kind}:{BEAT_TRACK_ANALYZER}:{BEAT_TRACK_ANALYZER_VERSION}:{params_hash}"
+            "{content_hash}:{declared_kind}:{}:{params_hash}:{BEAT_TRACK_ANALYZER}:{BEAT_TRACK_ANALYZER_VERSION}",
+            probe_fingerprint(probe)
         ))
     )
+}
+
+fn probe_fingerprint(probe: &AudioProbeSummary) -> String {
+    hash_string(&format!(
+        "{}:{}:{}:{}:{}:{}",
+        probe.container,
+        probe.codec,
+        probe.sample_rate_hz,
+        probe.channel_count,
+        probe.bits_per_sample,
+        probe.frame_count
+    ))
+}
+
+fn probe_audio_file(path: &Path) -> Result<ProbedAudio, String> {
+    let bytes = fs::read(path)
+        .map_err(|error| format!("failed to read audio file {}: {error}", path.display()))?;
+    parse_wav_pcm_s16le(&bytes, path)
+}
+
+fn parse_wav_pcm_s16le(bytes: &[u8], path: &Path) -> Result<ProbedAudio, String> {
+    if bytes.len() < 44 || &bytes[0..4] != b"RIFF" || &bytes[8..12] != b"WAVE" {
+        return Err(format!(
+            "audio probe currently supports WAV/PCM input only: {}",
+            path.display()
+        ));
+    }
+
+    let mut offset = 12_usize;
+    let mut fmt: Option<WavFormatSummary> = None;
+    let mut data_range: Option<(usize, usize)> = None;
+
+    while offset + 8 <= bytes.len() {
+        let chunk_id = &bytes[offset..offset + 4];
+        let chunk_size = u32::from_le_bytes([
+            bytes[offset + 4],
+            bytes[offset + 5],
+            bytes[offset + 6],
+            bytes[offset + 7],
+        ]) as usize;
+        let chunk_start = offset + 8;
+        let chunk_end = chunk_start.saturating_add(chunk_size);
+        if chunk_end > bytes.len() {
+            return Err(format!("wav chunk exceeded file bounds: {}", path.display()));
+        }
+
+        match chunk_id {
+            b"fmt " => {
+                if chunk_size < 16 {
+                    return Err(format!("wav fmt chunk too small: {}", path.display()));
+                }
+
+                let audio_format = u16::from_le_bytes([bytes[chunk_start], bytes[chunk_start + 1]]);
+                let channel_count =
+                    u16::from_le_bytes([bytes[chunk_start + 2], bytes[chunk_start + 3]]);
+                let sample_rate_hz = u32::from_le_bytes([
+                    bytes[chunk_start + 4],
+                    bytes[chunk_start + 5],
+                    bytes[chunk_start + 6],
+                    bytes[chunk_start + 7],
+                ]);
+                let block_align =
+                    u16::from_le_bytes([bytes[chunk_start + 12], bytes[chunk_start + 13]]);
+                let bits_per_sample =
+                    u16::from_le_bytes([bytes[chunk_start + 14], bytes[chunk_start + 15]]);
+
+                if audio_format != 1 {
+                    return Err(format!(
+                        "audio probe supports PCM format only, found format {}: {}",
+                        audio_format,
+                        path.display()
+                    ));
+                }
+                if bits_per_sample != 16 {
+                    return Err(format!(
+                        "audio probe supports 16-bit PCM only, found {} bits: {}",
+                        bits_per_sample,
+                        path.display()
+                    ));
+                }
+                if channel_count == 0 || sample_rate_hz == 0 || block_align == 0 {
+                    return Err(format!(
+                        "wav fmt chunk contains zero-valued fields: {}",
+                        path.display()
+                    ));
+                }
+
+                fmt = Some(WavFormatSummary {
+                    sample_rate_hz,
+                    channel_count,
+                    bits_per_sample,
+                    block_align,
+                });
+            }
+            b"data" => {
+                data_range = Some((chunk_start, chunk_end));
+            }
+            _ => {}
+        }
+
+        offset = chunk_end + (chunk_size % 2);
+    }
+
+    let fmt = fmt.ok_or_else(|| format!("wav fmt chunk was not found: {}", path.display()))?;
+    let (data_start, data_end) =
+        data_range.ok_or_else(|| format!("wav data chunk was not found: {}", path.display()))?;
+    let data = &bytes[data_start..data_end];
+    if !data.len().is_multiple_of(fmt.block_align as usize) {
+        return Err(format!("wav data length is not aligned to frame size: {}", path.display()));
+    }
+
+    let frame_count = data.len() as u64 / fmt.block_align as u64;
+    let channel_count = usize::from(fmt.channel_count);
+    let mut mono_samples = Vec::with_capacity(frame_count as usize);
+    let mut peak_ratio = 0.0_f64;
+    let mut sum_squares = 0.0_f64;
+    let mut sample_count = 0_u64;
+
+    for frame in data.chunks_exact(fmt.block_align as usize) {
+        let mut mono_accumulator = 0.0_f64;
+        for channel_index in 0..channel_count {
+            let sample_offset = channel_index * 2;
+            let sample = i16::from_le_bytes([frame[sample_offset], frame[sample_offset + 1]]);
+            let sample_i32 = i32::from(sample);
+            let magnitude = sample_i32.unsigned_abs() as f64 / i16::MAX as f64;
+            let normalized = sample_i32 as f64 / i16::MAX as f64;
+            peak_ratio = peak_ratio.max(magnitude.min(1.0));
+            sum_squares += normalized * normalized;
+            sample_count = sample_count.saturating_add(1);
+            mono_accumulator += normalized;
+        }
+        mono_samples.push((mono_accumulator / channel_count as f64) as f32);
+    }
+
+    let rms_ratio =
+        if sample_count == 0 { 0.0 } else { (sum_squares / sample_count as f64).sqrt() };
+    let duration_ms = frame_count.saturating_mul(1000) / u64::from(fmt.sample_rate_hz);
+
+    Ok(ProbedAudio {
+        summary: AudioProbeSummary {
+            container: String::from("wav"),
+            codec: String::from("pcm_s16le"),
+            sample_rate_hz: fmt.sample_rate_hz,
+            channel_count: fmt.channel_count,
+            bits_per_sample: fmt.bits_per_sample,
+            frame_count,
+            duration_ms,
+            peak_level_dbfs_tenths: dbfs_tenths(peak_ratio),
+            rms_level_dbfs_tenths: dbfs_tenths(rms_ratio),
+        },
+        mono_samples,
+    })
+}
+
+fn estimate_tempo_bpm(samples: &[f32], sample_rate_hz: u32) -> (u32, u32) {
+    if samples.is_empty() || sample_rate_hz == 0 {
+        return (120, 0);
+    }
+
+    let window_size = usize::try_from((sample_rate_hz / 100).max(240)).unwrap_or(240);
+    let mut envelope = Vec::new();
+    for chunk in samples.chunks(window_size) {
+        let energy =
+            chunk.iter().map(|sample| f64::from(sample.abs())).sum::<f64>() / chunk.len() as f64;
+        envelope.push(energy);
+    }
+
+    if envelope.len() < 3 {
+        return (120, 0);
+    }
+
+    let average_energy = envelope.iter().sum::<f64>() / envelope.len() as f64;
+    let threshold = average_energy.max(0.05) * 1.35;
+    let min_gap_windows = ((sample_rate_hz as f64 * 0.16) / window_size as f64).ceil() as usize;
+    let mut onsets = Vec::new();
+    let mut last_onset_index = None;
+
+    for index in 1..envelope.len() {
+        let previous = envelope[index - 1];
+        let current = envelope[index];
+        if current < threshold || current <= previous * 1.45 {
+            continue;
+        }
+
+        if let Some(last_index) = last_onset_index
+            && index.saturating_sub(last_index) < min_gap_windows.max(1)
+        {
+            continue;
+        }
+
+        let time_seconds = index as f64 * window_size as f64 / sample_rate_hz as f64;
+        onsets.push(time_seconds);
+        last_onset_index = Some(index);
+    }
+
+    if onsets.len() < 2 {
+        return (120, onsets.len() as u32);
+    }
+
+    let average_interval = onsets.windows(2).map(|window| window[1] - window[0]).sum::<f64>()
+        / (onsets.len() - 1) as f64;
+    if average_interval <= f64::EPSILON {
+        return (120, onsets.len() as u32);
+    }
+
+    let mut estimated_tempo_bpm = (60.0 / average_interval).round() as u32;
+    while estimated_tempo_bpm < 70 {
+        estimated_tempo_bpm = estimated_tempo_bpm.saturating_mul(2);
+    }
+    while estimated_tempo_bpm > 180 {
+        estimated_tempo_bpm = (estimated_tempo_bpm / 2).max(1);
+    }
+
+    (estimated_tempo_bpm.max(1), onsets.len() as u32)
+}
+
+fn estimate_bars(duration_ms: u64, tempo_bpm: u32) -> u32 {
+    if duration_ms == 0 || tempo_bpm == 0 {
+        return 1;
+    }
+
+    let beats = duration_ms as f64 / 1000.0 * tempo_bpm as f64 / 60.0;
+    (beats / 4.0).ceil().max(1.0) as u32
+}
+
+fn dbfs_tenths(level_ratio: f64) -> i32 {
+    if level_ratio <= 0.000_000_1 {
+        return -1200;
+    }
+
+    (20.0 * level_ratio.log10() * 10.0).round() as i32
 }
 
 fn build_asset_id(declared_kind: &str, source_path: &Path, content_hash: &str) -> String {
@@ -845,11 +1100,12 @@ fn diagnostic_from_string(message: String) -> Vec<Diagnostic> {
 mod tests {
     use super::{
         ArtifactLayout, AssetIngestRequest, AssetQuery, get_asset, ingest_assets,
-        list_asset_analysis, list_asset_jobs, list_assets, slug,
+        list_asset_analysis, list_asset_jobs, list_assets, read_json, slug,
     };
     use std::fs;
-    use std::path::PathBuf;
+    use std::path::{Path, PathBuf};
     use std::time::{SystemTime, UNIX_EPOCH};
+    use vidodo_ir::BeatTrackAnalysis;
 
     fn unique_temp_dir(name: &str) -> PathBuf {
         let root = std::env::temp_dir().join(format!(
@@ -859,6 +1115,52 @@ mod tests {
         ));
         fs::create_dir_all(&root).unwrap();
         root
+    }
+
+    fn write_test_wav(path: &Path, channels: u16, pulse_offsets: &[u32], total_frames: u32) {
+        let sample_rate_hz = 48_000_u32;
+        let bits_per_sample = 16_u16;
+        let block_align = channels * (bits_per_sample / 8);
+        let byte_rate = sample_rate_hz * u32::from(block_align);
+        let mut samples = vec![0_i16; total_frames as usize * channels as usize];
+
+        for &pulse_offset in pulse_offsets {
+            for frame_index in 0..2_400_u32 {
+                let frame = pulse_offset.saturating_add(frame_index);
+                if frame >= total_frames {
+                    break;
+                }
+
+                let progress = frame_index as f32 / 2_400.0;
+                let envelope = (1.0 - progress).max(0.0);
+                let sample = (envelope * i16::MAX as f32 * 0.65) as i16;
+                for channel_index in 0..channels as usize {
+                    samples[frame as usize * channels as usize + channel_index] = sample;
+                }
+            }
+        }
+
+        let data_len = samples.len() * std::mem::size_of::<i16>();
+        let riff_len = 36 + data_len;
+        let mut bytes = Vec::with_capacity(44 + data_len);
+        bytes.extend_from_slice(b"RIFF");
+        bytes.extend_from_slice(&(riff_len as u32).to_le_bytes());
+        bytes.extend_from_slice(b"WAVE");
+        bytes.extend_from_slice(b"fmt ");
+        bytes.extend_from_slice(&16_u32.to_le_bytes());
+        bytes.extend_from_slice(&1_u16.to_le_bytes());
+        bytes.extend_from_slice(&channels.to_le_bytes());
+        bytes.extend_from_slice(&sample_rate_hz.to_le_bytes());
+        bytes.extend_from_slice(&byte_rate.to_le_bytes());
+        bytes.extend_from_slice(&block_align.to_le_bytes());
+        bytes.extend_from_slice(&bits_per_sample.to_le_bytes());
+        bytes.extend_from_slice(b"data");
+        bytes.extend_from_slice(&(data_len as u32).to_le_bytes());
+        for sample in samples {
+            bytes.extend_from_slice(&sample.to_le_bytes());
+        }
+
+        fs::write(path, bytes).unwrap();
     }
 
     #[test]
@@ -876,8 +1178,8 @@ mod tests {
         let root = unique_temp_dir("ingest");
         let source_dir = root.join("imports");
         fs::create_dir_all(&source_dir).unwrap();
-        fs::write(source_dir.join("kick-a.wav"), b"kick fixture bytes").unwrap();
-        fs::write(source_dir.join("pad-a.wav"), b"pad fixture bytes").unwrap();
+        write_test_wav(&source_dir.join("kick-a.wav"), 1, &[0, 24_000, 48_000, 72_000], 96_000);
+        write_test_wav(&source_dir.join("pad-a.wav"), 2, &[12_000, 36_000, 60_000, 84_000], 96_000);
 
         let layout = ArtifactLayout::new(root.join("artifacts"));
         let request = AssetIngestRequest {
@@ -910,6 +1212,14 @@ mod tests {
 
         let analysis = list_asset_analysis(&layout, &asset.asset_id).unwrap();
         assert_eq!(analysis.len(), 1);
+        let payload_path = root.join(&analysis[0].payload_ref);
+        let payload: BeatTrackAnalysis = read_json(&payload_path).unwrap();
+        assert_eq!(payload.probe.codec, "pcm_s16le");
+        assert_eq!(payload.probe.sample_rate_hz, 48_000);
+        assert_eq!(payload.probe.channel_count, 1);
+        assert!(payload.probe.duration_ms >= 1_900);
+        assert!(payload.estimated_tempo_bpm >= 110 && payload.estimated_tempo_bpm <= 130);
+        assert!(payload.transient_count >= 3);
 
         let jobs = list_asset_jobs(&layout, &asset.asset_id).unwrap();
         assert_eq!(jobs.len(), 1);

@@ -44,6 +44,7 @@ The codebase is still early-stage, but the repository now has a real closed-loop
 - `scripts/init-artifact-store.sh` initializes the root artifact store, including raw/normalized asset layers and analysis cache directories
 - `tests/fixtures/` contains the controlled plan, asset, patch, and import fixtures used by the current loops
 - `vidodo-src/apps/avctl` now exposes the operator flow for `asset ingest/list/show`, `plan validate`, `compile run`, `run start/status`, `patch check/submit/rollback`, `trace show/events`, and `doctor`
+- `asset ingest` now runs a local minimal WAV/PCM audio probe and persists probe-backed beat-track results into the analysis cache
 - `vidodo-src/crates/ir`, `validator`, `compiler`, `scheduler`, `patch-manager`, `trace`, and `storage` implement the deterministic compile -> patch -> fake runtime -> trace loop
 - `vidodo-src/apps/core-service`, `mcp-adapter`, and `visual-runtime` remain deliberately deferred placeholders until this single mainline is exhausted
 

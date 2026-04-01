@@ -332,13 +332,28 @@ pub struct AnalysisCacheEntry {
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct AudioProbeSummary {
+    pub container: String,
+    pub codec: String,
+    pub sample_rate_hz: u32,
+    pub channel_count: u16,
+    pub bits_per_sample: u16,
+    pub frame_count: u64,
+    pub duration_ms: u64,
+    pub peak_level_dbfs_tenths: i32,
+    pub rms_level_dbfs_tenths: i32,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct BeatTrackAnalysis {
     pub asset_id: String,
     pub analyzer: String,
     pub analyzer_version: String,
+    pub probe: AudioProbeSummary,
     pub estimated_tempo_bpm: u32,
     pub downbeat_bar: u32,
     pub estimated_bars: u32,
+    pub transient_count: u32,
     pub source_size_bytes: u64,
 }
 

@@ -14,7 +14,7 @@ This directory contains the Rust workspace for the current Vidodo Phase 0 mainli
 - `crates/scheduler`: musical clock, fake audio/visual backend dispatch, and run status generation
 - `crates/patch-manager`: local-content patch checking, submit, and rollback decision flow
 - `crates/trace`: trace manifest and event log writing/loading
-- `crates/storage`: repo-root discovery plus asset registry, analysis cache, and artifact-store helpers
+- `crates/storage`: repo-root discovery plus asset registry, local WAV/PCM probe, analysis cache, and artifact-store helpers
 - `xtask`: workspace automation for fmt, clippy, audit, test, and bench
 
 ## Default Commands
@@ -41,7 +41,7 @@ Run from the repository root:
 ## Phase 0 Mainline
 
 1. Validate a controlled plan fixture through `avctl plan validate`.
-2. Ingest controlled source files through `avctl asset ingest` and inspect the registry with `avctl asset list/show`.
+2. Ingest controlled WAV/PCM source files through `avctl asset ingest`, run the local audio probe, and inspect the registry with `avctl asset list/show`.
 3. Compile the plan into revision artifacts through `avctl compile run`.
 4. Submit a bounded local-content patch through `avctl patch submit`.
 5. Execute the patched revision through `avctl run start`.
