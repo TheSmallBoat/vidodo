@@ -620,6 +620,57 @@ Visual IR 是视觉侧的可执行对象，结构与 Performance IR 对齐，但
 - `adapter_plugin_manifest`
 - `resource_hub_descriptor`
 
+对于多节点分布式装置专项层，还建议在部署边界对象中显式引入：
+
+- `distributed_node_descriptor`
+- `deployment_profile`
+- `transport_contract`
+
+这些对象不属于 runtime payload，也不应并入 Scheduler 核心状态；它们属于部署边界，用于表达节点编组、部署拓扑和节点间传输契约。
+
+#### DistributedNodeDescriptor
+
+```json
+{
+  "type": "distributed_node_descriptor",
+  "id": "node-display-left-a",
+  "node_role": "visual_projection",
+  "host_ref": "host://display-left-a",
+  "plugin_refs": ["plugin.visual.spatial_multiview.install-a.v0"],
+  "assigned_topologies": ["display-wall-a"],
+  "transport_refs": ["transport-control-main", "transport-health-main"]
+}
+```
+
+#### DeploymentProfile
+
+```json
+{
+  "type": "deployment_profile",
+  "id": "deploy-stage-a-v1",
+  "mode": "distributed_cluster",
+  "node_refs": ["node-display-left-a", "node-audio-ring-a"],
+  "transport_refs": ["transport-control-main", "transport-state-main"],
+  "time_authority": "node-audio-ring-a",
+  "failure_policy": "degrade_isolate"
+}
+```
+
+#### TransportContract
+
+```json
+{
+  "type": "transport_contract",
+  "id": "transport-control-main",
+  "bus_kind": "control_bus",
+  "protocol": "nats",
+  "topology": "broadcast",
+  "ordering": "per_subject",
+  "delivery_guarantee": "at_least_once",
+  "latency_budget_ms": 30
+}
+```
+
 ## 6. Executable IR 字段草案
 
 ### 6.1 Unified Timeline Entry

@@ -179,6 +179,14 @@ schemas/{category}/{object-name}.v{major}.json
 | capability-descriptor.v0.json | av.capability.capability-descriptor.v0 | capability、input_schema、output_schema、execution_mode、idempotency、authorization、target_service | 16 §7.1 | WSA-12 |
 | adapter-plugin-manifest.v0.json | av.capability.adapter-plugin-manifest.v0 | plugin_id、plugin_kind、backend_kind、version、capabilities、target_topology_types、health_contract | 05 §5.5, 30 §4.2 | WSA-12 |
 
+### 3.12 deployment —— 分布式装置专项层对象
+
+| 文件名 | $id | 内容 | 来源文档 | 任务卡 |
+| --- | --- | --- | --- | --- |
+| distributed-node-descriptor.v0.json | av.deployment.distributed-node-descriptor.v0 | node_id、node_role、host_ref、plugin_refs、assigned_topologies、transport_refs、health_endpoint、status | 05 §5.5, 31 §4.1 | WSA-11 |
+| deployment-profile.v0.json | av.deployment.deployment-profile.v0 | deployment_id、mode、node_refs、transport_refs、time_authority、resource_prewarm_policy、rollout_strategy、failure_policy、trace_policy | 05 §5.5, 31 §4.2 | WSA-11 |
+| transport-contract.v0.json | av.deployment.transport-contract.v0 | transport_id、bus_kind、protocol、topology、ordering、delivery_guarantee、latency_budget_ms、reconnect_policy、security_profile | 05 §5.5, 31 §4.3 | WSA-11 |
+
 ---
 
 ## 4. 实施优先级
@@ -226,6 +234,7 @@ schemas/{category}/{object-name}.v{major}.json
 | P2 | audio/* | 音频后端绑定集成测试 |
 | P2 | lighting/* | 灯光拓扑与 cue 集成测试 |
 | P2 | capability/* | MCP adapter 集成 |
+| P2 | deployment/* | 多节点装置专项层与传输契约预研 |
 
 ---
 
@@ -286,13 +295,14 @@ Golden output 用于回归测试，变更需显式审批。
 | link | 2 |
 | audio | 3 |
 | capability | 5 |
-| **合计** | **63** |
+| deployment | 3 |
+| **合计** | **66** |
 
-加上已有的 `schemas/mcp-tools/av-tool-registry.v0.json`，总计 **64** 个 schema 文件。
+加上已有的 `schemas/mcp-tools/av-tool-registry.v0.json`，总计 **67** 个 schema 文件。
 
 ## 7. 结论
 
-本清单覆盖了设计文档 04-20、27、28、29、30 中定义的主要结构化对象。63 个 schema 文件按三个优先级分批交付：
+本清单覆盖了设计文档 04-20、27、28、29、30、31 中定义的主要结构化对象。66 个 schema 文件按三个优先级分批交付：
 
 1. **P0**（M0 里程碑）：13 个核心 schema，编码启动前置。
 2. **P1**（M1-M5 期间）：随各 Workstream 按需交付。

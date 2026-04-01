@@ -161,6 +161,7 @@ Trace / artifact write path:
 
 - MVP 不是不做插件边界，而是不要求一开始就做成完整 marketplace。
 - MVP 必须先固定 adapter plugin 协议和 resource hub 引用方式。
+- MVP 默认不做通用多节点消息总线；复杂分布式装置编排应放在单独适配项目中推进。
 
 ## 5. MVP 推荐目录布局
 
