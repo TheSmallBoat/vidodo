@@ -1,0 +1,239 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "av-tool-registry.v0",
+  "title": "Audiovisual System MCP Tool Registry",
+  "type": "object",
+  "required": ["version", "tools", "defs"],
+  "properties": {
+    "version": {
+      "type": "string",
+      "const": "0.1"
+    },
+    "tools": {
+      "type": "array",
+      "items": {
+        "$ref": "#/$defs/toolDescriptor"
+      }
+    },
+    "defs": {
+      "type": "object"
+    }
+  },
+  "$defs": {
+    "toolDescriptor": {
+      "type": "object",
+      "required": [
+        "name",
+        "title",
+        "description",
+        "inputSchema",
+        "outputSchema",
+        "annotations"
+      ],
+      "properties": {
+        "name": {
+          "type": "string"
+        },
+        "title": {
+          "type": "string"
+        },
+        "description": {
+          "type": "string"
+        },
+        "inputSchema": {
+          "type": "object"
+        },
+        "outputSchema": {
+          "type": "object"
+        },
+        "annotations": {
+          "type": "object",
+          "required": ["readOnlyHint", "idempotency", "async", "authorization"],
+          "properties": {
+            "readOnlyHint": {
+              "type": "boolean"
+            },
+            "idempotency": {
+              "type": "string",
+              "enum": ["idempotent", "conditional", "non_idempotent"]
+            },
+            "async": {
+              "type": "boolean"
+            },
+            "authorization": {
+              "type": "string"
+            }
+          }
+        }
+      }
+    },
+    "envelope": {
+      "type": "object",
+      "required": ["status", "capability", "request_id", "data", "diagnostics", "artifacts", "next_actions"],
+      "properties": {
+        "status": {
+          "type": "string",
+          "enum": ["ok", "accepted", "warning", "error"]
+        },
+        "capability": {
+          "type": "string"
+        },
+        "request_id": {
+          "type": "string"
+        },
+        "data": {
+          "type": "object"
+        },
+        "diagnostics": {
+          "type": "array",
+          "items": {
+            "type": "object"
+          }
+        },
+        "artifacts": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "next_actions": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        }
+      }
+    },
+    "livePatchProposal": {
+      "type": "object",
+      "required": ["patch_id", "patch_class", "base_revision", "scope", "changes", "fallback_revision"],
+      "properties": {
+        "patch_id": {"type": "string"},
+        "patch_class": {
+          "type": "string",
+          "enum": ["param", "local_content", "structural", "emergency"]
+        },
+        "base_revision": {"type": "integer"},
+        "scope": {
+          "type": "object",
+          "required": ["from_bar", "to_bar", "window"],
+          "properties": {
+            "from_bar": {"type": "integer"},
+            "to_bar": {"type": "integer"},
+            "window": {
+              "type": "string",
+              "enum": ["next_beat", "next_bar", "next_phrase_boundary", "next_section_boundary", "emergency_slot"]
+            }
+          }
+        },
+        "intent": {
+          "type": "object"
+        },
+        "changes": {
+          "type": "array",
+          "items": {
+            "type": "object"
+          }
+        },
+        "fallback_revision": {"type": "integer"}
+      }
+    },
+    "patchTicket": {
+      "type": "object",
+      "required": ["ticket_id", "patch_id", "state"],
+      "properties": {
+        "ticket_id": {"type": "string"},
+        "patch_id": {"type": "string"},
+        "state": {
+          "type": "string",
+          "enum": ["proposed", "authorized", "validated", "staged", "activated", "rejected", "rolled_back"]
+        },
+        "effective_revision": {"type": "integer"},
+        "fallback_revision": {"type": "integer"},
+        "audit_ref": {"type": "string"}
+      }
+    }
+  },
+  "examples": [
+    {
+      "version": "0.1",
+      "tools": [
+        {
+          "name": "asset.ingest",
+          "title": "Ingest Assets",
+          "description": "Ingest raw assets, normalize them, and publish asset records.",
+          "inputSchema": {
+            "type": "object",
+            "required": ["source"],
+            "properties": {
+              "source": {"type": "string"},
+              "declared_kind": {"type": "string"},
+              "profile": {"type": "string"}
+            }
+          },
+          "outputSchema": {
+            "$ref": "#/$defs/envelope"
+          },
+          "annotations": {
+            "readOnlyHint": false,
+            "idempotency": "conditional",
+            "async": true,
+            "authorization": "planner"
+          }
+        },
+        {
+          "name": "patch.submit",
+          "title": "Submit Live Patch",
+          "description": "Submit a bounded live patch proposal against a running show.",
+          "inputSchema": {
+            "type": "object",
+            "required": ["patch"],
+            "properties": {
+              "patch": {
+                "$ref": "#/$defs/livePatchProposal"
+              },
+              "auto_approve_if_allowed": {
+                "type": "boolean",
+                "default": true
+              }
+            }
+          },
+          "outputSchema": {
+            "$ref": "#/$defs/patchTicket"
+          },
+          "annotations": {
+            "readOnlyHint": false,
+            "idempotency": "conditional",
+            "async": true,
+            "authorization": "operator_or_policy"
+          }
+        },
+        {
+          "name": "trace.query",
+          "title": "Query Trace Records",
+          "description": "Query event and patch records from a trace bundle or run.",
+          "inputSchema": {
+            "type": "object",
+            "required": ["run_id"],
+            "properties": {
+              "run_id": {"type": "string"},
+              "from_bar": {"type": "integer"},
+              "to_bar": {"type": "integer"},
+              "kind": {"type": "string"}
+            }
+          },
+          "outputSchema": {
+            "$ref": "#/$defs/envelope"
+          },
+          "annotations": {
+            "readOnlyHint": true,
+            "idempotency": "idempotent",
+            "async": false,
+            "authorization": "read_only"
+          }
+        }
+      ],
+      "defs": {}
+    }
+  ]
+}
