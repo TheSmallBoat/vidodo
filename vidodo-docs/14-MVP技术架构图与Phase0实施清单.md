@@ -118,8 +118,14 @@ Trace / artifact write path:
 | Asset Ingestion | Python + Rust glue | 素材接入、分析任务调度、资产发布 |
 | Analysis Workers | Python | beat、section、key、特征分析 |
 | Audio Runtime | 成熟音频引擎 | 音频回放、自动化、导出 |
-| Visual Runtime | Rust + wgpu | scene、uniform、camera、render |
+| Visual Runtime | Rust + wgpu | scene、uniform、camera、render、多视角 view set |
 | Artifact Store | JSON / JSONL / SQLite / 文件目录 | 工件、索引、trace、导出 |
+
+补充约束：
+
+- Visual Runtime 应在 Core 内部支持可替换的 output backend 抽象。
+- MVP 至少明确 `flat_display_backend` 与 `spatial_multiview_backend` 的接口边界。
+- Audio Runtime 也应为常规系统输出与空间扬声器矩阵输出保留后端抽象接口。
 
 ### 4.2 可后置组件
 
@@ -253,11 +259,15 @@ Phase 0 完成时，团队应能演示：
 - 实现 Visual Runtime 控制桥
 - 定义并打通 timing、audio、visual 三类最小事件
 - 维护最小 Show State
+- 为多视角 visual output backend 预留 display topology 与 calibration profile
+- 为音频输出后端预留 speaker matrix topology 与 calibration profile
 
 完成标准：
 
 - Audio 与 Visual 都能消费同一 revision 的时间线
 - section / phrase 事件能同时到达两个 Runtime
+- Visual Runtime 能以单 scene 输出至少一个可切换 view group
+- Runtime 工件中能表达 display topology / speaker topology 的引用
 
 ### 7.5 Workstream E：Trace 与导出
 
