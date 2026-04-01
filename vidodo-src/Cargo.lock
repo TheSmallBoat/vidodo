@@ -37,6 +37,7 @@ dependencies = [
  "serde_json",
  "vidodo-compiler",
  "vidodo-ir",
+ "vidodo-patch-manager",
  "vidodo-scheduler",
  "vidodo-storage",
  "vidodo-trace",
@@ -368,6 +369,7 @@ name = "vidodo-compiler"
 version = "0.1.0"
 dependencies = [
  "criterion",
+ "serde_json",
  "vidodo-ir",
  "vidodo-validator",
 ]
@@ -384,6 +386,8 @@ name = "vidodo-patch-manager"
 version = "0.1.0"
 dependencies = [
  "serde",
+ "vidodo-compiler",
+ "vidodo-ir",
 ]
 
 [[package]]
@@ -391,19 +395,28 @@ name = "vidodo-scheduler"
 version = "0.1.0"
 dependencies = [
  "serde",
+ "serde_json",
+ "vidodo-compiler",
  "vidodo-ir",
+ "vidodo-patch-manager",
 ]
 
 [[package]]
 name = "vidodo-storage"
 version = "0.1.0"
+dependencies = [
+ "serde",
+ "serde_json",
+]
 
 [[package]]
 name = "vidodo-trace"
 version = "0.1.0"
 dependencies = [
  "serde",
+ "serde_json",
  "vidodo-ir",
+ "vidodo-storage",
 ]
 
 [[package]]

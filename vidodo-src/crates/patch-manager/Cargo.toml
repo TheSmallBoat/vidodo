@@ -8,3 +8,7 @@ repository.workspace = true
 
 [dependencies]
 serde.workspace = true
+vidodo-ir = { path = "../ir" }
+
+[dev-dependencies]
+vidodo-compiler = { path = "../compiler" }

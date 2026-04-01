@@ -1,0 +1,18 @@
+{
+    "type": "timeline_entry",
+    "id": "timeline-audio-intro",
+    "show_id": "show-phase0-minimal",
+    "revision": 1,
+    "channel": "audio",
+    "target_ref": "audio-intro-rhythm",
+    "effective_window": {
+        "from_bar": 1,
+        "to_bar": 8
+    },
+    "scheduler": {
+        "lookahead_ms": "250",
+        "priority": 10,
+        "conflict_group": "audio-intro"
+    },
+    "guards": {}
+}

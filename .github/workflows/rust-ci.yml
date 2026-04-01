@@ -1,20 +1,43 @@
-name: Rust CI
+name: Phase 0 CI
 
 on:
   pull_request:
     paths:
+      - 'schemas/**'
+      - 'scripts/**'
+      - 'tests/**'
       - 'vidodo-src/**'
       - '.github/**'
   push:
     branches:
       - main
     paths:
+      - 'schemas/**'
+      - 'scripts/**'
+      - 'tests/**'
       - 'vidodo-src/**'
       - '.github/**'
   workflow_dispatch:
 
 jobs:
+  schema-validation:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v6.0.2
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+      - name: install schema validator dependency
+        run: python -m pip install jsonschema
+      - name: make scripts executable
+        run: chmod +x scripts/*.sh tests/e2e/*.sh
+      - name: initialize artifact store
+        run: ./scripts/init-artifact-store.sh
+      - name: validate schema fixtures
+        run: ./scripts/schema-validate.sh
+
   quality-gate:
+    needs: schema-validation
     runs-on: ubuntu-latest
     defaults:
       run:
@@ -40,7 +63,24 @@ jobs:
       - name: audit
         run: cargo audit
 
+  phase0-smoke:
+    needs: [schema-validation, quality-gate]
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v6.0.2
+      - uses: dtolnay/rust-toolchain@stable
+      - uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: vidodo-src
+      - name: make scripts executable
+        run: chmod +x scripts/*.sh tests/e2e/*.sh
+      - name: initialize artifact store
+        run: ./scripts/init-artifact-store.sh
+      - name: run phase0 smoke
+        run: ./tests/e2e/phase0_smoke.sh
+
   bench:
+    needs: [quality-gate, phase0-smoke]
     if: github.event_name == 'workflow_dispatch' || github.ref == 'refs/heads/main'
     runs-on: ubuntu-latest
     defaults:

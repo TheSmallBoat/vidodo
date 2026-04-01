@@ -1,0 +1,9 @@
+{
+    "performance_actions": [
+        {
+            "action_id": "audio-intro-rhythm",
+            "layer_id": "rhythm-main",
+            "op": "launch_asset"
+        }
+    ]
+}

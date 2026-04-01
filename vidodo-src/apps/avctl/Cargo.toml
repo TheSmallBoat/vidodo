@@ -11,6 +11,7 @@ serde.workspace = true
 serde_json.workspace = true
 vidodo-compiler = { path = "../../crates/compiler" }
 vidodo-ir = { path = "../../crates/ir" }
+vidodo-patch-manager = { path = "../../crates/patch-manager" }
 vidodo-scheduler = { path = "../../crates/scheduler" }
 vidodo-storage = { path = "../../crates/storage" }
 vidodo-trace = { path = "../../crates/trace" }

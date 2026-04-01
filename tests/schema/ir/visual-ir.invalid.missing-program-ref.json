@@ -1,0 +1,8 @@
+{
+    "visual_actions": [
+        {
+            "visual_action_id": "visual-intro",
+            "scene_id": "scene_intro"
+        }
+    ]
+}

@@ -1,0 +1,14 @@
+{
+    "patch_id": "patch-phase0-pad-swap",
+    "patch_class": "local_content",
+    "base_revision": 1,
+    "changes": [
+        {
+            "op": "replace_asset",
+            "target": "texture-bed",
+            "from": "audio.loop.pad-a",
+            "to": "audio.loop.pad-b"
+        }
+    ],
+    "fallback_revision": 1
+}

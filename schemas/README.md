@@ -1,6 +1,8 @@
 # schemas
 
-本目录存放 Vidodo 的正式 JSON Schema 文件。
+本目录是 Vidodo 当前唯一的正式 JSON Schema 根目录。
+
+设计文档仍然存放在 `vidodo-docs/`，但真正进入校验、fixture 和 CI 的 schema 文件只认这里。
 
 当前已落地的第一批骨架文件包括：
 
@@ -39,7 +41,7 @@
   - `lighting-topology.v0.json`
   - `cue-set.v0.json`
 
-这批文件的目标是先把命名、目录、`$id`、`$ref` 和 required 字段框架固定下来。
+这批文件的目标是先把命名、目录、`$id`、`$ref` 和 required 字段框架固定下来，并围绕 Phase 0 主线形成一个真实可验证的工件面。
 
 当前已补到第二批骨架，新增包括：
 
@@ -64,4 +66,8 @@
 4. `audio/`、`link/`、`capability/` 其余分类
 5. `lighting/` 与运行时灯光事件相关 schema
 
-当前所有 `.json` 文件已经通过基础 JSON 语法校验。
+当前使用方式：
+
+1. 通过 `tests/schema/` 下的正例和反例 fixture 验证 schema 行为。
+2. 通过 `./scripts/schema-validate.sh` 在本地或 CI 运行校验。
+3. 通过 `vidodo-src/` 中的 Rust 类型和 `avctl doctor` 保持 schema 与实现的最小闭环一致。

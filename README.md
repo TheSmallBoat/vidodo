@@ -6,9 +6,9 @@ The project defines a deterministic system that accepts structured plans and liv
 
 ## Repository Status
 
-- Current stage: design-first repository with an initial Rust workspace scaffold
-- Main contents: product documents, technical design documents, GitHub workflow templates, Copilot harness files, and a minimal Rust implementation skeleton
-- Implementation status: `vidodo-src/` now contains a compilable Rust workspace with placeholder apps, core crates, benchmarks, and workspace automation
+- Current stage: design-first repository with a normalized Phase 0 execution baseline
+- Main contents: `vidodo-docs/` design documents, root-level `schemas/`, root-level `scripts/`, controlled `tests/fixtures/`, GitHub workflow templates, and a Rust workspace under `vidodo-src/`
+- Implementation status: `vidodo-src/` now carries the single Phase 0 mainline via `avctl + compiler + scheduler + fake audio/visual backends + patch + trace`
 
 ## Core Idea
 
@@ -37,17 +37,30 @@ That means:
 
 ## Current Code Status
 
-The codebase is still early-stage, but it is no longer empty.
+The codebase is still early-stage, but the repository now has a real closed-loop baseline.
 
-- `vidodo-src/apps/avctl` provides a minimal smoke CLI with `doctor` and `plan validate` commands
-- `vidodo-src/crates/ir` defines the first shared serializable types for a minimal plan bundle and compiled plan
-- `vidodo-src/crates/validator` and `vidodo-src/crates/compiler` provide a deterministic minimal validation and compile loop
-- `vidodo-src/crates/scheduler`, `trace`, `storage`, and `patch-manager` provide placeholder domain modules with basic tests
-- `vidodo-src/xtask` centralizes the workspace quality gate and command workflow
+- `schemas/` is the canonical schema root for Phase 0 artifacts
+- `scripts/schema-validate.sh` validates root schemas against controlled fixtures in `tests/schema/`
+- `scripts/init-artifact-store.sh` initializes the root artifact store used by local and CI smoke flows
+- `tests/fixtures/` contains the controlled plan, asset, and patch fixtures used by the mainline
+- `vidodo-src/apps/avctl` now exposes the Phase 0 operator flow: `plan validate`, `compile run`, `run start/status`, `patch check/submit/rollback`, `trace show/events`, and `doctor`
+- `vidodo-src/crates/ir`, `validator`, `compiler`, `scheduler`, `patch-manager`, `trace`, and `storage` implement the deterministic compile -> patch -> fake runtime -> trace loop
+- `vidodo-src/apps/core-service`, `mcp-adapter`, and `visual-runtime` remain deliberately deferred placeholders until this single mainline is exhausted
 
-This scaffold is intended to support the first real task-card implementations rather than represent finished runtime behavior.
+## Canonical Roots
 
-## Default Rust Workflow
+- `vidodo-docs/`: source of truth for product boundary, architecture, task cards, and test strategy
+- `schemas/`: canonical JSON Schema root
+- `scripts/`: repository-level validation and artifact-store scripts
+- `tests/`: schema fixtures, controlled inputs, and end-to-end smoke scripts
+- `vidodo-src/`: Rust workspace implementing the current Phase 0 mainline
+
+## Default Workflow
+
+Run from the repository root:
+
+- `./scripts/schema-validate.sh`
+- `./scripts/init-artifact-store.sh`
 
 Run from `vidodo-src/`:
 
@@ -58,14 +71,15 @@ Run from `vidodo-src/`:
 - `cargo audit`
 - `cargo bench --workspace`
 - `cargo xtask ci`
+- `cargo run -p avctl -- doctor`
 
 ## Roadmap
 
-1. Finalize schemas for planning, runtime, trace, and patch artifacts.
-2. Expand the initial Rust scaffold into real task-card implementations.
-3. Build the first schema, validator, and compiler deliverables from Workstream A and C.
-4. Implement the artifact store and validation pipeline.
-5. Prove the Phase 0 end-to-end loop.
+1. Expand fixture and negative coverage from the current P0 schema set to the remaining schema catalog.
+2. Add the asset ingestion path after the current fixture-backed mainline is stable.
+3. Harden scheduler resync, degraded mode, and trace detail around longer-running scenarios.
+4. Decide whether `core-service` should remain a library-driven local loop or split into a dedicated service.
+5. Only then widen MCP, lighting, and distributed deployment scope.
 
 ## License
 

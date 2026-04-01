@@ -1,0 +1,18 @@
+{
+    "asset_id": "audio.loop.kick-a",
+    "asset_kind": "audio_loop",
+    "content_hash": "sha256:asset-kick-a",
+    "raw_locator": "fixture://audio/raw-kick-a.wav",
+    "normalized_locator": "fixture://audio/loop-kick-a.wav",
+    "status": "published",
+    "analysis_refs": [
+        "analysis-tempo-001"
+    ],
+    "derived_refs": [],
+    "tags": [
+        "fixture",
+        "rhythm"
+    ],
+    "warm_status": "warmed",
+    "readiness": "live_candidate"
+}

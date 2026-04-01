@@ -9,3 +9,8 @@ repository.workspace = true
 [dependencies]
 serde.workspace = true
 vidodo-ir = { path = "../ir" }
+
+[dev-dependencies]
+serde_json.workspace = true
+vidodo-compiler = { path = "../compiler" }
+vidodo-patch-manager = { path = "../patch-manager" }

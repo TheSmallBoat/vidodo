@@ -1,0 +1,23 @@
+{
+    "type": "set_plan",
+    "id": "set-phase0-main",
+    "mode": "live",
+    "goal": {
+        "intent": "phase0_unique_mainline"
+    },
+    "asset_pool_refs": [
+        "pool-minimal"
+    ],
+    "sections": [
+        {
+            "section_id": "intro",
+            "length_bars": 8
+        }
+    ],
+    "constraints_ref": "constraint-phase0-main",
+    "delivery": {
+        "render_bundle": false,
+        "trace_bundle": true,
+        "evaluation": false
+    }
+}

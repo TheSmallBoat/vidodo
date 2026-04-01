@@ -1,0 +1,6 @@
+{
+    "code": "VAL-001",
+    "namespace": "validator",
+    "severity": "error",
+    "retryable": false
+}

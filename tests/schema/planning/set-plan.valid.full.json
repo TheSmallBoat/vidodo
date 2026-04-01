@@ -1,0 +1,39 @@
+{
+    "type": "set_plan",
+    "id": "set-phase0-main",
+    "show_id": "show-phase0-minimal",
+    "mode": "live",
+    "goal": {
+        "intent": "phase0_unique_mainline",
+        "duration_target_sec": 64,
+        "style_tags": [
+            "deterministic",
+            "fixture-driven"
+        ]
+    },
+    "asset_pool_refs": [
+        "pool-minimal"
+    ],
+    "sections": [
+        {
+            "section_id": "intro",
+            "length_bars": 8,
+            "energy_target": 0.2,
+            "density_target": 0.2,
+            "visual_intent": "scene_intro"
+        },
+        {
+            "section_id": "drop",
+            "length_bars": 8,
+            "energy_target": 0.7,
+            "density_target": 0.6,
+            "visual_intent": "scene_drop"
+        }
+    ],
+    "constraints_ref": "constraint-phase0-main",
+    "delivery": {
+        "render_bundle": false,
+        "trace_bundle": true,
+        "evaluation": false
+    }
+}
