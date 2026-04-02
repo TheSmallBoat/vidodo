@@ -1,7 +1,8 @@
 use serde::{Deserialize, Serialize};
 use vidodo_ir::{
-    AudioEvent, BackendAck, CompiledRevision, EventRecord, MusicalTime, PatchDecision, PatchEvent,
-    ResourceSample, RunSummary, RuntimePayload, ShowState, TimingEvent, VisualEvent,
+    AudioEvent, BackendAck, CompiledRevision, EventRecord, LightingEvent, MusicalTime,
+    PatchDecision, PatchEvent, ResourceSample, RunSummary, RuntimePayload, ShowState, TimingEvent,
+    VisualEvent,
 };
 
 pub mod clock;
@@ -16,6 +17,7 @@ pub mod show_state;
 pub trait BackendClient {
     fn dispatch_audio(&self, event: &AudioEvent) -> BackendAck;
     fn dispatch_visual(&self, event: &VisualEvent) -> BackendAck;
+    fn dispatch_lighting(&self, event: &LightingEvent) -> BackendAck;
 }
 
 /// Deterministic fake backend that always returns `ok` acks.
@@ -41,6 +43,15 @@ impl BackendClient for FakeBackendClient {
             target: event.scene_id.clone(),
             status: String::from("ok"),
             detail: format!("render {}", event.shader_program),
+        }
+    }
+
+    fn dispatch_lighting(&self, event: &LightingEvent) -> BackendAck {
+        BackendAck {
+            backend: String::from("fake_lighting_backend"),
+            target: event.cue_set_id.clone(),
+            status: String::from("ok"),
+            detail: format!("cue {}", event.source_ref),
         }
     }
 }
@@ -278,6 +289,47 @@ pub fn simulate_run_with_backend(
                         scheduler_time_ms += 1_000;
                     }
                 }
+                "lighting" => {
+                    // target_ref is "cue_set_id:index"
+                    if let Some((cue_set_id, index_str)) = entry.target_ref.split_once(':')
+                        && let Ok(cue_index) = index_str.parse::<usize>()
+                        && let Some(cue) = compiled
+                            .cue_sets
+                            .iter()
+                            .find(|cs| cs.cue_set_id == cue_set_id)
+                            .and_then(|cs| cs.entries.get(cue_index))
+                    {
+                        let payload = LightingEvent {
+                            cue_set_id: cue_set_id.to_string(),
+                            source_ref: cue.source_ref.clone(),
+                            fixture_group: cue.fixture_group.clone(),
+                            intensity: cue.intensity,
+                            color: cue.color,
+                            fade_beats: cue.fade_beats,
+                        };
+                        events.push(EventRecord {
+                            event_id: format!("evt-{next_event:04}"),
+                            show_id: compiled.show_id.clone(),
+                            revision: compiled.revision,
+                            kind: String::from("lighting.cue.enter"),
+                            phase: String::from("executed"),
+                            source: String::from("scheduler"),
+                            musical_time: MusicalTime::at_bar(
+                                section.span.start_bar,
+                                phrase,
+                                section.section_id.clone(),
+                                128.0,
+                            ),
+                            scheduler_time_ms,
+                            wallclock_time_ms: scheduler_time_ms,
+                            causation_id: entry.id.clone(),
+                            payload: RuntimePayload::Lighting(payload.clone()),
+                            ack: Some(backend.dispatch_lighting(&payload)),
+                        });
+                        next_event += 1;
+                        scheduler_time_ms += 1_000;
+                    }
+                }
                 _ => {}
             }
         }
@@ -331,7 +383,7 @@ pub fn simulate_run_with_backend(
 mod tests {
     use super::{BackendClient, FakeBackendClient, simulate_run, simulate_run_with_backend};
     use vidodo_compiler::compile_plan;
-    use vidodo_ir::{AudioEvent, BackendAck, PlanBundle, VisualEvent};
+    use vidodo_ir::{AudioEvent, BackendAck, PlanBundle, RuntimePayload, VisualEvent};
     use vidodo_patch_manager::apply_patch;
 
     #[test]
@@ -372,6 +424,9 @@ mod tests {
             fn dispatch_visual(&self, event: &VisualEvent) -> BackendAck {
                 self.visual_count.set(self.visual_count.get() + 1);
                 FakeBackendClient.dispatch_visual(event)
+            }
+            fn dispatch_lighting(&self, event: &vidodo_ir::LightingEvent) -> BackendAck {
+                FakeBackendClient.dispatch_lighting(event)
             }
         }
         let backend = CountingBackend {
@@ -429,5 +484,27 @@ mod tests {
         assert_eq!(run.patch_decisions.len(), 1);
         assert_eq!(run.patch_decisions[0].patch_id, "patch-phase0-pad-swap");
         assert_eq!(run.patch_decisions[0].decision, "applied");
+    }
+
+    #[test]
+    fn emits_lighting_events_from_cue_sets() {
+        let compiled =
+            compile_plan(&PlanBundle::minimal("show-phase0")).expect("plan should compile");
+        let run = simulate_run(&compiled, "run-lighting-test");
+
+        let lighting_events: Vec<_> =
+            run.events.iter().filter(|e| e.kind == "lighting.cue.enter").collect();
+        assert!(
+            !lighting_events.is_empty(),
+            "expected at least one lighting event from cue_sets in minimal plan"
+        );
+        // The minimal plan has a cue with source_ref="intro", which matches the first section
+        assert!(lighting_events.iter().any(|e| {
+            if let RuntimePayload::Lighting(l) = &e.payload {
+                l.source_ref == "intro" && !l.fixture_group.is_empty()
+            } else {
+                false
+            }
+        }));
     }
 }

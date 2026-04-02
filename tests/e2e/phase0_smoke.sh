@@ -28,6 +28,7 @@ cargo run -p avctl -- revision list --show-id "$show_id" >/dev/null
 cargo run -p avctl -- patch rollback --show-id "$show_id" --patch-id patch-phase0-pad-swap >/dev/null
 cargo run -p avctl -- patch deferred-rollback --show-id "$show_id" --patch-id patch-phase0-pad-swap --anomaly "gpu_overload" --run-id "$run_id" >/dev/null
 cargo run -p visual-runtime -- --run-id "$run_id" >/dev/null
+cargo run -p lighting-runtime -- --run-id "$run_id" >/dev/null
 cargo run -p avctl -- system capabilities >/dev/null
 
 test -f "$repo_root/artifacts/revisions/show-phase0-minimal/revision-2/patch-decision.json"
@@ -41,5 +42,17 @@ test -f "$repo_root/artifacts/exports/run-show-phase0-minimal-rev-2/export-recor
 test -f "$repo_root/artifacts/revisions/show-phase0-minimal/rollback-patch-phase0-pad-swap.json"
 test -f "$repo_root/artifacts/revisions/show-phase0-minimal/deferred-rollback-patch-phase0-pad-swap.json"
 test -f "$repo_root/artifacts/traces/run-show-phase0-minimal-rev-2/visual-acks.json"
+test -f "$repo_root/artifacts/traces/run-show-phase0-minimal-rev-2/lighting-acks.json"
+
+# WSJ-04: verify lighting-acks.json contains cue_executed and synced entries
+lighting_acks="$repo_root/artifacts/traces/run-show-phase0-minimal-rev-2/lighting-acks.json"
+if ! grep -q '"cue_executed"' "$lighting_acks"; then
+  echo "FAIL: lighting-acks.json missing cue_executed" >&2
+  exit 1
+fi
+if ! grep -q '"synced"' "$lighting_acks"; then
+  echo "FAIL: lighting-acks.json missing synced" >&2
+  exit 1
+fi
 
 echo "phase0_smoke: all checks passed"

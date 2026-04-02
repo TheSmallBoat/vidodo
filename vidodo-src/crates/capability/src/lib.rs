@@ -311,6 +311,7 @@ fn cap(
     authorization: &[&str],
     description: &str,
 ) -> CapabilityDescriptor {
+    let (input_schema, output_schema) = capability_schemas(capability);
     CapabilityDescriptor {
         capability: String::from(capability),
         version: String::from("0.1"),
@@ -318,9 +319,95 @@ fn cap(
         idempotency: String::from(idempotency),
         authorization: authorization.iter().map(|s| String::from(*s)).collect(),
         description: String::from(description),
-        input_schema: String::new(),
-        output_schema: String::new(),
+        input_schema,
+        output_schema,
         target_service: String::new(),
+    }
+}
+
+fn capability_schemas(capability: &str) -> (String, String) {
+    match capability {
+        "asset.ingest" => (
+            r#"{"type":"object","properties":{"source_dir":{"type":"string"},"declared_kind":{"type":"string"},"tags":{"type":"array","items":{"type":"string"}},"asset_namespace":{"type":"string"}},"required":["source_dir","declared_kind"]}"#.into(),
+            r#"{"type":"object","properties":{"ingestion_run_id":{"type":"string"},"discovered":{"type":"integer"},"published":{"type":"integer"},"assets":{"type":"array","items":{"type":"string"}}}}"#.into(),
+        ),
+        "asset.list" => (
+            r#"{"type":"object","properties":{"kind":{"type":"string"},"tag":{"type":"string"}}}"#.into(),
+            r#"{"type":"object","properties":{"count":{"type":"integer"},"assets":{"type":"array"}}}"#.into(),
+        ),
+        "asset.show" => (
+            r#"{"type":"object","properties":{"asset_id":{"type":"string"}},"required":["asset_id"]}"#.into(),
+            r#"{"type":"object","properties":{"asset":{"type":"object"},"analysis_entries":{"type":"array"},"analysis_jobs":{"type":"array"}}}"#.into(),
+        ),
+        "plan.validate" => (
+            r#"{"type":"object","properties":{"plan_dir":{"type":"string"},"plan":{"type":"object"}}}"#.into(),
+            r#"{"type":"object","properties":{"show_id":{"type":"string"},"section_count":{"type":"integer"},"audio_layer_count":{"type":"integer"},"visual_scene_count":{"type":"integer"}}}"#.into(),
+        ),
+        "plan.submit" => (
+            r#"{"type":"object","properties":{"plan_dir":{"type":"string"},"plan":{"type":"object"}}}"#.into(),
+            r#"{"type":"object","properties":{"show_id":{"type":"string"},"revision":{"type":"integer"},"compile_run_id":{"type":"string"},"timeline_entries":{"type":"integer"}}}"#.into(),
+        ),
+        "compile.run" => (
+            r#"{"type":"object","properties":{"plan_dir":{"type":"string"},"plan":{"type":"object"}}}"#.into(),
+            r#"{"type":"object","properties":{"show_id":{"type":"string"},"revision":{"type":"integer"},"compile_run_id":{"type":"string"},"timeline_entries":{"type":"integer"}}}"#.into(),
+        ),
+        "revision.list" => (
+            r#"{"type":"object","properties":{"show_id":{"type":"string"}},"required":["show_id"]}"#.into(),
+            r#"{"type":"object","properties":{"show_id":{"type":"string"},"revisions":{"type":"array"}}}"#.into(),
+        ),
+        "revision.publish" | "revision.archive" => (
+            r#"{"type":"object","properties":{"show_id":{"type":"string"},"revision":{"type":"integer"}},"required":["show_id","revision"]}"#.into(),
+            r#"{"type":"object","properties":{"note":{"type":"string"}}}"#.into(),
+        ),
+        "run.start" => (
+            r#"{"type":"object","properties":{"show_id":{"type":"string"},"revision":{"type":"integer"}},"required":["show_id","revision"]}"#.into(),
+            r#"{"type":"object","properties":{"run_id":{"type":"string"},"show_id":{"type":"string"},"revision":{"type":"integer"},"event_count":{"type":"integer"},"trace_bundle_id":{"type":"string"}}}"#.into(),
+        ),
+        "run.status" => (
+            r#"{"type":"object","properties":{"show_id":{"type":"string"}},"required":["show_id"]}"#.into(),
+            r#"{"type":"object","properties":{"show_id":{"type":"string"},"run_id":{"type":"string"},"revision":{"type":"integer"},"status":{"type":"string"}}}"#.into(),
+        ),
+        "patch.check" => (
+            r#"{"type":"object","properties":{"show_id":{"type":"string"},"patch":{"type":"object"}},"required":["show_id","patch"]}"#.into(),
+            r#"{"type":"object","properties":{"show_id":{"type":"string"},"base_revision":{"type":"integer"},"patch_id":{"type":"string"}}}"#.into(),
+        ),
+        "patch.submit" => (
+            r#"{"type":"object","properties":{"show_id":{"type":"string"},"patch":{"type":"object"}},"required":["show_id","patch"]}"#.into(),
+            r#"{"type":"object","properties":{"show_id":{"type":"string"},"patch_id":{"type":"string"},"effective_revision":{"type":"integer"}}}"#.into(),
+        ),
+        "patch.rollback" => (
+            r#"{"type":"object","properties":{"show_id":{"type":"string"},"patch_id":{"type":"string"}},"required":["show_id","patch_id"]}"#.into(),
+            r#"{"type":"object","properties":{"show_id":{"type":"string"},"patch_id":{"type":"string"},"fallback_revision":{"type":"integer"}}}"#.into(),
+        ),
+        "patch.deferred_rollback" => (
+            r#"{"type":"object","properties":{"show_id":{"type":"string"},"patch_id":{"type":"string"},"anomaly":{"type":"string"}},"required":["show_id","patch_id","anomaly"]}"#.into(),
+            r#"{"type":"object","properties":{"show_id":{"type":"string"},"patch_id":{"type":"string"},"decision":{"type":"string"},"fallback_revision":{"type":"integer"}}}"#.into(),
+        ),
+        "trace.show" => (
+            r#"{"type":"object","properties":{"run_id":{"type":"string"}},"required":["run_id"]}"#.into(),
+            r#"{"type":"object","properties":{"trace_bundle_id":{"type":"string"},"show_id":{"type":"string"},"revision":{"type":"integer"}}}"#.into(),
+        ),
+        "trace.events" => (
+            r#"{"type":"object","properties":{"run_id":{"type":"string"},"from_bar":{"type":"integer"},"to_bar":{"type":"integer"}},"required":["run_id"]}"#.into(),
+            r#"{"type":"object","properties":{"run_id":{"type":"string"},"event_count":{"type":"integer"},"events":{"type":"array"}}}"#.into(),
+        ),
+        "eval.run" => (
+            r#"{"type":"object","properties":{"show_id":{"type":"string"},"run_id":{"type":"string"}},"required":["show_id"]}"#.into(),
+            r#"{"type":"object","properties":{"run_id":{"type":"string"},"metrics":{"type":"object"}}}"#.into(),
+        ),
+        "export.audio" => (
+            r#"{"type":"object","properties":{"run_id":{"type":"string"}},"required":["run_id"]}"#.into(),
+            r#"{"type":"object","properties":{"artifact_id":{"type":"string"},"locator":{"type":"string"},"content_hash":{"type":"string"},"duration_sec":{"type":"number"}}}"#.into(),
+        ),
+        "system.doctor" => (
+            r#"{"type":"object","properties":{}}"#.into(),
+            r#"{"type":"object","properties":{"status":{"type":"string"}}}"#.into(),
+        ),
+        "system.capabilities" => (
+            r#"{"type":"object","properties":{}}"#.into(),
+            r#"{"type":"object","properties":{"count":{"type":"integer"},"capabilities":{"type":"array","items":{"type":"object","properties":{"capability":{"type":"string"},"version":{"type":"string"},"execution_mode":{"type":"string"},"description":{"type":"string"},"input_schema":{"type":"string"},"output_schema":{"type":"string"}}}}}}"#.into(),
+        ),
+        _ => (String::new(), String::new()),
     }
 }
 

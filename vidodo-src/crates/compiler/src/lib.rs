@@ -1,9 +1,9 @@
 use std::collections::BTreeMap;
 
 use vidodo_ir::{
-    CompiledRevision, Diagnostic, EffectiveWindow, MusicalTime, PerformanceAction, PerformanceIr,
-    PlanBundle, StructureIr, StructureSection, StructureSpan, TimelineEntry, TimelineScheduler,
-    VisualAction, VisualIr,
+    CompiledRevision, CueSet, Diagnostic, EffectiveWindow, MusicalTime, PerformanceAction,
+    PerformanceIr, PlanBundle, StructureIr, StructureSection, StructureSpan, TimelineEntry,
+    TimelineScheduler, VisualAction, VisualIr,
 };
 use vidodo_validator::validate_plan;
 
@@ -22,8 +22,14 @@ pub fn compile_plan(plan: &PlanBundle) -> Result<CompiledRevision, Vec<Diagnosti
     let structure_ir = build_structure(plan);
     let performance_ir = build_performance(plan, &structure_ir);
     let visual_ir = build_visual(plan, &structure_ir);
-    let mut timeline =
-        build_timeline(plan.show_id(), revision, &structure_ir, &performance_ir, &visual_ir);
+    let mut timeline = build_timeline(
+        plan.show_id(),
+        revision,
+        &structure_ir,
+        &performance_ir,
+        &visual_ir,
+        &plan.cue_sets,
+    );
     sort_timeline(&mut timeline);
 
     Ok(CompiledRevision {
@@ -179,6 +185,7 @@ fn build_timeline(
     structure: &StructureIr,
     performance: &PerformanceIr,
     visual: &VisualIr,
+    cue_sets: &[CueSet],
 ) -> Vec<TimelineEntry> {
     let section_lookup = structure
         .sections
@@ -230,6 +237,33 @@ fn build_timeline(
                 },
                 guards: BTreeMap::new(),
             });
+        }
+    }
+
+    // Build lighting timeline entries from cue sets
+    for cue_set in cue_sets {
+        for (index, cue) in cue_set.entries.iter().enumerate() {
+            // Match cue source_ref to a section
+            if let Some(section) = section_lookup.get(&cue.source_ref) {
+                timeline.push(TimelineEntry {
+                    r#type: String::from("timeline_entry"),
+                    id: format!("timeline-lighting-{}-{index}", cue_set.cue_set_id),
+                    show_id: show_id.to_string(),
+                    revision,
+                    channel: String::from("lighting"),
+                    target_ref: format!("{}:{index}", cue_set.cue_set_id),
+                    effective_window: EffectiveWindow {
+                        from_bar: section.span.start_bar,
+                        to_bar: section.span.end_bar,
+                    },
+                    scheduler: TimelineScheduler {
+                        lookahead_ms: 250,
+                        priority: 40,
+                        conflict_group: format!("lighting-{}", section.section_id),
+                    },
+                    guards: BTreeMap::new(),
+                });
+            }
         }
     }
 

@@ -12,8 +12,8 @@ use vidodo_compiler::revision::{
 };
 use vidodo_evaluation::evaluate_run;
 use vidodo_ir::{
-    AssetRecord, AudioDsl, CompiledRevision, ConstraintSet, Diagnostic, LivePatchProposal,
-    PatchDecision, PlanBundle, ResponseEnvelope, SetPlan, VisualDsl,
+    AssetRecord, AudioDsl, CompiledRevision, ConstraintSet, CueSet, Diagnostic, LightingTopology,
+    LivePatchProposal, PatchDecision, PlanBundle, ResponseEnvelope, SetPlan, VisualDsl,
 };
 use vidodo_patch_manager::{apply_patch, check_patch, deferred_rollback, rollback_patch};
 use vidodo_scheduler::{RunStatusRecord, simulate_run};
@@ -1011,6 +1011,18 @@ fn load_plan_bundle(plan_dir: &Path, assets_file: &Path) -> Result<PlanBundle, S
     let visual_dsl: VisualDsl = read_json(&plan_dir.join("visual-dsl.json"))?;
     let constraint_set: ConstraintSet = read_json(&plan_dir.join("constraint-set.json"))?;
     let asset_records: Vec<AssetRecord> = read_json(assets_file)?;
+
+    let lighting_topology_path = plan_dir.join("lighting-topology.json");
+    let lighting_topology: Option<LightingTopology> = if lighting_topology_path.exists() {
+        Some(read_json(&lighting_topology_path)?)
+    } else {
+        None
+    };
+
+    let cue_set_path = plan_dir.join("cue-set.json");
+    let cue_sets: Vec<CueSet> =
+        if cue_set_path.exists() { read_json(&cue_set_path)? } else { Vec::new() };
+
     let show_id = set_plan.show_id.clone();
     Ok(PlanBundle {
         show_id,
@@ -1020,8 +1032,8 @@ fn load_plan_bundle(plan_dir: &Path, assets_file: &Path) -> Result<PlanBundle, S
         visual_dsl,
         constraint_set,
         asset_records,
-        lighting_topology: None,
-        cue_sets: Vec::new(),
+        lighting_topology,
+        cue_sets,
     })
 }
 

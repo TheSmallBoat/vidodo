@@ -1,0 +1,22 @@
+[
+    {
+        "cue_set_id": "cue-phase0-main",
+        "topology_ref": "topo-phase0-minimal",
+        "entries": [
+            {
+                "source_ref": "intro",
+                "fixture_group": [
+                    "fx-front-wash"
+                ],
+                "intensity": 0.8,
+                "color": [
+                    0.2,
+                    0.4,
+                    1.0
+                ],
+                "fade_beats": 4.0,
+                "policy": "crossfade"
+            }
+        ]
+    }
+]
