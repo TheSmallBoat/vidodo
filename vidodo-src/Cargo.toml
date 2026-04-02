@@ -2,6 +2,7 @@
 members = [
     "apps/avctl",
     "apps/core-service",
+    "apps/lighting-runtime",
     "apps/mcp-adapter",
     "apps/visual-runtime",
     "crates/capability",

@@ -1,0 +1,12 @@
+{
+    "topology_id": "grid-a",
+    "backend": "dmx",
+    "fixture_endpoints": [
+        {
+            "fixture_id": "fx-01",
+            "role": "fill",
+            "device_ref": "node-a",
+            "status": "invalid_status"
+        }
+    ]
+}

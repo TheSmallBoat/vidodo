@@ -1,3 +1,5 @@
+use std::time::{SystemTime, UNIX_EPOCH};
+
 use serde::Serialize;
 use vidodo_ir::{
     CapabilityDescriptor, CapabilityRequest, Diagnostic, OperationTicket, ResponseEnvelope,
@@ -116,8 +118,91 @@ pub fn route(capability: &str) -> Result<RouteTarget, Box<Diagnostic>> {
 }
 
 // ---------------------------------------------------------------------------
+// MCP Tool ↔ Capability Mapping (WSI-01)
+// ---------------------------------------------------------------------------
+
+/// An MCP tool definition that maps to a capability.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize)]
+pub struct McpToolMapping {
+    pub tool_name: String,
+    pub capability: String,
+    pub read_only: bool,
+    pub is_async: bool,
+}
+
+/// Return the complete MCP tool → capability mapping table.
+pub fn mcp_tool_mappings() -> Vec<McpToolMapping> {
+    vec![
+        mcp_map("asset.ingest", "asset.ingest", false, true),
+        mcp_map("asset.list", "asset.list", true, false),
+        mcp_map("asset.show", "asset.show", true, false),
+        mcp_map("plan.validate", "plan.validate", true, false),
+        mcp_map("plan.submit", "plan.submit", false, true),
+        mcp_map("compile.run", "compile.run", false, true),
+        mcp_map("revision.list", "revision.list", true, false),
+        mcp_map("revision.publish", "revision.publish", false, false),
+        mcp_map("revision.archive", "revision.archive", false, false),
+        mcp_map("run.start", "run.start", false, true),
+        mcp_map("run.status", "run.status", true, false),
+        mcp_map("patch.check", "patch.check", true, false),
+        mcp_map("patch.submit", "patch.submit", false, true),
+        mcp_map("patch.rollback", "patch.rollback", false, false),
+        mcp_map("patch.deferred_rollback", "patch.deferred_rollback", false, false),
+        mcp_map("trace.show", "trace.show", true, false),
+        mcp_map("trace.events", "trace.events", true, false),
+        mcp_map("eval.run", "eval.run", false, true),
+        mcp_map("export.audio", "export.audio", false, true),
+        mcp_map("system.doctor", "system.doctor", true, false),
+        mcp_map("system.capabilities", "system.capabilities", true, false),
+    ]
+}
+
+/// Resolve an MCP tool name to a capability identifier.
+pub fn resolve_mcp_tool(tool_name: &str) -> Option<&'static str> {
+    // Tool names currently map 1:1 to capability identifiers.
+    match tool_name {
+        "asset.ingest" => Some("asset.ingest"),
+        "asset.list" => Some("asset.list"),
+        "asset.show" => Some("asset.show"),
+        "plan.validate" => Some("plan.validate"),
+        "plan.submit" => Some("plan.submit"),
+        "compile.run" => Some("compile.run"),
+        "revision.list" => Some("revision.list"),
+        "revision.publish" => Some("revision.publish"),
+        "revision.archive" => Some("revision.archive"),
+        "run.start" => Some("run.start"),
+        "run.status" => Some("run.status"),
+        "patch.check" => Some("patch.check"),
+        "patch.submit" => Some("patch.submit"),
+        "patch.rollback" => Some("patch.rollback"),
+        "patch.deferred_rollback" => Some("patch.deferred_rollback"),
+        "trace.show" => Some("trace.show"),
+        "trace.events" => Some("trace.events"),
+        "eval.run" => Some("eval.run"),
+        "export.audio" => Some("export.audio"),
+        "system.doctor" => Some("system.doctor"),
+        "system.capabilities" => Some("system.capabilities"),
+        _ => None,
+    }
+}
+
+fn mcp_map(tool_name: &str, capability: &str, read_only: bool, is_async: bool) -> McpToolMapping {
+    McpToolMapping {
+        tool_name: String::from(tool_name),
+        capability: String::from(capability),
+        read_only,
+        is_async,
+    }
+}
+
+// ---------------------------------------------------------------------------
 // Operation Tracker
 // ---------------------------------------------------------------------------
+
+/// Return current UNIX epoch in milliseconds.
+fn now_millis() -> u64 {
+    SystemTime::now().duration_since(UNIX_EPOCH).map(|d| d.as_millis() as u64).unwrap_or(0)
+}
 
 pub struct OperationTracker {
     tickets: Vec<OperationTicket>,
@@ -136,7 +221,7 @@ impl OperationTracker {
             request_id: request.request_id.clone(),
             capability: request.capability.clone(),
             state: String::from("running"),
-            started_at: 0, // Caller should set real timestamp
+            started_at: now_millis(),
             updated_at: None,
             artifact_refs: Vec::new(),
         };
@@ -145,10 +230,22 @@ impl OperationTracker {
         ticket
     }
 
+    /// Start an operation only if the capability is async.
+    /// Returns `None` for sync capabilities.
+    pub fn start_if_async(
+        &mut self,
+        request: &CapabilityRequest,
+        registry: &CapabilityRegistry,
+    ) -> Option<OperationTicket> {
+        let descriptor = registry.lookup(&request.capability)?;
+        if descriptor.execution_mode == "async" { Some(self.start(request)) } else { None }
+    }
+
     /// Mark an operation as succeeded, attaching optional artifact refs.
     pub fn complete(&mut self, operation_id: &str, artifact_refs: Vec<String>) -> bool {
         if let Some(ticket) = self.tickets.iter_mut().find(|t| t.operation_id == operation_id) {
             ticket.state = String::from("succeeded");
+            ticket.updated_at = Some(now_millis());
             ticket.artifact_refs = artifact_refs;
             true
         } else {
@@ -160,6 +257,7 @@ impl OperationTracker {
     pub fn fail(&mut self, operation_id: &str) -> bool {
         if let Some(ticket) = self.tickets.iter_mut().find(|t| t.operation_id == operation_id) {
             ticket.state = String::from("failed");
+            ticket.updated_at = Some(now_millis());
             true
         } else {
             false
@@ -380,11 +478,15 @@ mod tests {
         let ticket = tracker.start(&req);
         assert_eq!(ticket.state, "running");
         assert_eq!(ticket.operation_id, "op-0001");
+        assert!(ticket.started_at > 0, "started_at should be a real timestamp");
+        assert!(ticket.updated_at.is_none());
 
         assert!(tracker.complete(&ticket.operation_id, vec![String::from("artifact.json")]));
         let updated = tracker.get(&ticket.operation_id).expect("missing ticket");
         assert_eq!(updated.state, "succeeded");
         assert_eq!(updated.artifact_refs, vec!["artifact.json"]);
+        assert!(updated.updated_at.is_some(), "updated_at should be set on completion");
+        assert!(updated.updated_at.unwrap() >= updated.started_at);
     }
 
     #[test]
@@ -402,6 +504,39 @@ mod tests {
         assert!(tracker.fail(&ticket.operation_id));
         let updated = tracker.get(&ticket.operation_id).expect("missing ticket");
         assert_eq!(updated.state, "failed");
+        assert!(updated.updated_at.is_some(), "updated_at should be set on failure");
+    }
+
+    #[test]
+    fn start_if_async_creates_ticket_for_async_capability() {
+        let mut tracker = OperationTracker::new();
+        let registry = CapabilityRegistry::default();
+        let req = CapabilityRequest {
+            request_id: String::from("req-003"),
+            capability: String::from("compile.run"), // async
+            payload: serde_json::Value::Null,
+            actor: None,
+            metadata: None,
+        };
+        let ticket = tracker.start_if_async(&req, &registry);
+        assert!(ticket.is_some(), "compile.run is async, should get a ticket");
+        assert_eq!(tracker.list().len(), 1);
+    }
+
+    #[test]
+    fn start_if_async_skips_sync_capability() {
+        let mut tracker = OperationTracker::new();
+        let registry = CapabilityRegistry::default();
+        let req = CapabilityRequest {
+            request_id: String::from("req-004"),
+            capability: String::from("asset.list"), // sync
+            payload: serde_json::Value::Null,
+            actor: None,
+            metadata: None,
+        };
+        let ticket = tracker.start_if_async(&req, &registry);
+        assert!(ticket.is_none(), "asset.list is sync, should not get a ticket");
+        assert!(tracker.list().is_empty());
     }
 
     #[test]
@@ -412,5 +547,42 @@ mod tests {
             serde_json::from_str(&json).expect("deserialize");
         assert_eq!(deserialized.len(), 21);
         assert_eq!(deserialized[0].capability, "asset.ingest");
+    }
+
+    #[test]
+    fn mcp_tool_mappings_has_21_entries() {
+        let mappings = mcp_tool_mappings();
+        assert_eq!(mappings.len(), 21);
+        // Every mapping's capability should exist in the registry
+        let registry = CapabilityRegistry::default();
+        for m in &mappings {
+            assert!(
+                registry.lookup(&m.capability).is_some(),
+                "MCP tool {} maps to unknown capability {}",
+                m.tool_name,
+                m.capability
+            );
+        }
+    }
+
+    #[test]
+    fn resolve_mcp_tool_known_and_unknown() {
+        assert_eq!(resolve_mcp_tool("compile.run"), Some("compile.run"));
+        assert_eq!(resolve_mcp_tool("patch.submit"), Some("patch.submit"));
+        assert!(resolve_mcp_tool("nonexistent.tool").is_none());
+    }
+
+    #[test]
+    fn mcp_async_flags_match_capability_execution_mode() {
+        let registry = CapabilityRegistry::default();
+        for m in mcp_tool_mappings() {
+            let desc = registry.lookup(&m.capability).unwrap();
+            let expected_async = desc.execution_mode == "async";
+            assert_eq!(
+                m.is_async, expected_async,
+                "MCP tool {} is_async={} but capability execution_mode={}",
+                m.tool_name, m.is_async, desc.execution_mode
+            );
+        }
     }
 }

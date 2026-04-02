@@ -1,0 +1,52 @@
+{
+    "topology_id": "main-stage-grid",
+    "backend": "artnet_dmx",
+    "calibration_profile": "venue-a-2026",
+    "fixture_endpoints": [
+        {
+            "fixture_id": "fx-front-wash-01",
+            "role": "front_wash",
+            "device_ref": "dmx-node-1",
+            "universe": 1,
+            "address": 1,
+            "position": [
+                0.0,
+                5.0,
+                -3.0
+            ],
+            "orientation": [
+                0.0,
+                -45.0,
+                0.0
+            ],
+            "capabilities": [
+                "dimmer",
+                "rgb",
+                "strobe"
+            ],
+            "status": "available"
+        },
+        {
+            "fixture_id": "fx-back-spot-02",
+            "role": "back_spot",
+            "device_ref": "dmx-node-2",
+            "universe": 1,
+            "address": 16,
+            "position": [
+                2.0,
+                6.0,
+                4.0
+            ],
+            "orientation": [
+                0.0,
+                -60.0,
+                15.0
+            ],
+            "capabilities": [
+                "dimmer",
+                "gobo"
+            ],
+            "status": "degraded"
+        }
+    ]
+}

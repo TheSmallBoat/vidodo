@@ -857,12 +857,26 @@ pub struct PatchEvent {
 }
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+pub struct LightingEvent {
+    pub cue_set_id: String,
+    pub source_ref: String,
+    pub fixture_group: Vec<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub intensity: Option<f64>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub color: Option<[f64; 3]>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub fade_beats: Option<f64>,
+}
+
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 #[serde(tag = "payload_type", content = "payload", rename_all = "snake_case")]
 pub enum RuntimePayload {
     Timing(TimingEvent),
     Audio(AudioEvent),
     Visual(VisualEvent),
     Patch(PatchEvent),
+    Lighting(LightingEvent),
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
@@ -1095,4 +1109,134 @@ pub struct OperationTicket {
     pub updated_at: Option<u64>,
     #[serde(default)]
     pub artifact_refs: Vec<String>,
+}
+
+// ---------------------------------------------------------------------------
+// Lighting types (Phase 1 — WSJ-01)
+// ---------------------------------------------------------------------------
+
+/// A single lighting fixture endpoint, matching lighting-topology.v0.json fixture_endpoints items.
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+pub struct LightingFixture {
+    pub fixture_id: String,
+    pub role: String,
+    pub device_ref: String,
+    #[serde(default)]
+    pub universe: Option<u32>,
+    #[serde(default)]
+    pub address: Option<u32>,
+    #[serde(default)]
+    pub position: Option<[f64; 3]>,
+    #[serde(default)]
+    pub orientation: Option<[f64; 3]>,
+    #[serde(default)]
+    pub capabilities: Vec<String>,
+    #[serde(default)]
+    pub status: Option<String>,
+}
+
+/// A lighting topology — maps to lighting-topology.v0.json root.
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+pub struct LightingTopology {
+    pub topology_id: String,
+    pub backend: String,
+    #[serde(default)]
+    pub calibration_profile: Option<String>,
+    pub fixture_endpoints: Vec<LightingFixture>,
+}
+
+/// A single cue entry within a cue set, matching cue-set.v0.json entries items.
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+pub struct LightingCue {
+    pub source_ref: String,
+    pub fixture_group: Vec<String>,
+    #[serde(default)]
+    pub intensity: Option<f64>,
+    #[serde(default)]
+    pub color: Option<[f64; 3]>,
+    #[serde(default)]
+    pub fade_beats: Option<f64>,
+    #[serde(default)]
+    pub motion_preset: Option<String>,
+    #[serde(default)]
+    pub policy: Option<String>,
+}
+
+/// A complete cue set bound to a topology — maps to cue-set.v0.json root.
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+pub struct CueSet {
+    pub cue_set_id: String,
+    pub topology_ref: String,
+    pub entries: Vec<LightingCue>,
+}
+
+// ---------------------------------------------------------------------------
+// Tests
+// ---------------------------------------------------------------------------
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn lighting_fixture_serde_round_trip() {
+        let fixture = LightingFixture {
+            fixture_id: String::from("fx-01"),
+            role: String::from("fill"),
+            device_ref: String::from("node-a"),
+            universe: Some(1),
+            address: Some(42),
+            position: Some([1.0, 2.0, 3.0]),
+            orientation: Some([0.0, 90.0, 0.0]),
+            capabilities: vec![String::from("dimmer"), String::from("rgb")],
+            status: Some(String::from("available")),
+        };
+        let json = serde_json::to_string(&fixture).unwrap();
+        let back: LightingFixture = serde_json::from_str(&json).unwrap();
+        assert_eq!(fixture, back);
+    }
+
+    #[test]
+    fn lighting_topology_from_schema_fixture() {
+        let json = r#"{
+            "topology_id": "lighting-grid-a",
+            "backend": "spatial_lighting_matrix_backend",
+            "fixture_endpoints": [{
+                "fixture_id": "fx-up-left-03",
+                "role": "upper_left_fill",
+                "device_ref": "lighting-node-a"
+            }]
+        }"#;
+        let topo: LightingTopology = serde_json::from_str(json).unwrap();
+        assert_eq!(topo.topology_id, "lighting-grid-a");
+        assert_eq!(topo.fixture_endpoints.len(), 1);
+        assert_eq!(topo.fixture_endpoints[0].fixture_id, "fx-up-left-03");
+        // round-trip
+        let back: LightingTopology =
+            serde_json::from_str(&serde_json::to_string(&topo).unwrap()).unwrap();
+        assert_eq!(topo, back);
+    }
+
+    #[test]
+    fn cue_set_from_schema_fixture() {
+        let json = r#"{
+            "cue_set_id": "cue-drop-a-v3",
+            "topology_ref": "lighting-grid-a",
+            "entries": [{
+                "source_ref": "scene/drop_a",
+                "fixture_group": ["fx-up-left-03"],
+                "intensity": 0.8,
+                "color": [1.0, 0.0, 0.5],
+                "fade_beats": 2.0
+            }]
+        }"#;
+        let cs: CueSet = serde_json::from_str(json).unwrap();
+        assert_eq!(cs.cue_set_id, "cue-drop-a-v3");
+        assert_eq!(cs.entries.len(), 1);
+        assert_eq!(cs.entries[0].intensity, Some(0.8));
+        assert_eq!(cs.entries[0].color, Some([1.0, 0.0, 0.5]));
+        // round-trip
+        let back: CueSet = serde_json::from_str(&serde_json::to_string(&cs).unwrap()).unwrap();
+        assert_eq!(cs, back);
+    }
 }

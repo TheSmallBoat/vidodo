@@ -1,0 +1,10 @@
+{
+    "cue_set_id": "bad-cue",
+    "topology_ref": "grid-a",
+    "entries": [
+        {
+            "source_ref": "scene/test",
+            "fixture_group": []
+        }
+    ]
+}

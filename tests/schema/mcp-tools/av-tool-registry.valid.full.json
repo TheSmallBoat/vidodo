@@ -1,0 +1,776 @@
+{
+    "version": "0.1",
+    "tools": [
+        {
+            "name": "asset.ingest",
+            "title": "Asset Ingest",
+            "description": "Import assets from a source directory into the asset registry.",
+            "inputSchema": {
+                "type": "object",
+                "required": [
+                    "source"
+                ],
+                "properties": {
+                    "source": {
+                        "type": "string",
+                        "description": "Path to source directory or file"
+                    },
+                    "asset_namespace": {
+                        "type": "string"
+                    }
+                }
+            },
+            "outputSchema": {
+                "type": "object",
+                "properties": {
+                    "ingested": {
+                        "type": "integer"
+                    },
+                    "skipped": {
+                        "type": "integer"
+                    },
+                    "asset_ids": {
+                        "type": "array",
+                        "items": {
+                            "type": "string"
+                        }
+                    }
+                }
+            },
+            "annotations": {
+                "readOnlyHint": false,
+                "idempotency": "conditional",
+                "async": true,
+                "authorization": "operator"
+            }
+        },
+        {
+            "name": "asset.list",
+            "title": "Asset List",
+            "description": "List published assets in the registry.",
+            "inputSchema": {
+                "type": "object",
+                "properties": {
+                    "status": {
+                        "type": "string",
+                        "enum": [
+                            "published",
+                            "compile_ready",
+                            "warmed"
+                        ]
+                    }
+                }
+            },
+            "outputSchema": {
+                "type": "object",
+                "properties": {
+                    "assets": {
+                        "type": "array",
+                        "items": {
+                            "type": "object"
+                        }
+                    }
+                }
+            },
+            "annotations": {
+                "readOnlyHint": true,
+                "idempotency": "idempotent",
+                "async": false,
+                "authorization": "operator"
+            }
+        },
+        {
+            "name": "asset.show",
+            "title": "Asset Show",
+            "description": "Show details and analysis for a specific asset.",
+            "inputSchema": {
+                "type": "object",
+                "required": [
+                    "asset_id"
+                ],
+                "properties": {
+                    "asset_id": {
+                        "type": "string"
+                    }
+                }
+            },
+            "outputSchema": {
+                "type": "object",
+                "properties": {
+                    "record": {
+                        "type": "object"
+                    },
+                    "analysis": {
+                        "type": "array",
+                        "items": {
+                            "type": "object"
+                        }
+                    }
+                }
+            },
+            "annotations": {
+                "readOnlyHint": true,
+                "idempotency": "idempotent",
+                "async": false,
+                "authorization": "operator"
+            }
+        },
+        {
+            "name": "plan.validate",
+            "title": "Plan Validate",
+            "description": "Validate a plan bundle against schema and constraint rules.",
+            "inputSchema": {
+                "type": "object",
+                "required": [
+                    "plan_path"
+                ],
+                "properties": {
+                    "plan_path": {
+                        "type": "string"
+                    }
+                }
+            },
+            "outputSchema": {
+                "type": "object",
+                "properties": {
+                    "valid": {
+                        "type": "boolean"
+                    },
+                    "diagnostics": {
+                        "type": "array",
+                        "items": {
+                            "type": "object"
+                        }
+                    }
+                }
+            },
+            "annotations": {
+                "readOnlyHint": true,
+                "idempotency": "idempotent",
+                "async": false,
+                "authorization": "planner"
+            }
+        },
+        {
+            "name": "plan.submit",
+            "title": "Plan Submit",
+            "description": "Submit a validated plan bundle for compilation.",
+            "inputSchema": {
+                "type": "object",
+                "required": [
+                    "show_id",
+                    "plan_path"
+                ],
+                "properties": {
+                    "show_id": {
+                        "type": "string"
+                    },
+                    "plan_path": {
+                        "type": "string"
+                    }
+                }
+            },
+            "outputSchema": {
+                "type": "object",
+                "properties": {
+                    "submission_id": {
+                        "type": "string"
+                    }
+                }
+            },
+            "annotations": {
+                "readOnlyHint": false,
+                "idempotency": "conditional",
+                "async": true,
+                "authorization": "planner"
+            }
+        },
+        {
+            "name": "compile.run",
+            "title": "Compile Run",
+            "description": "Compile a plan into a candidate revision.",
+            "inputSchema": {
+                "type": "object",
+                "required": [
+                    "show_id",
+                    "plan_path"
+                ],
+                "properties": {
+                    "show_id": {
+                        "type": "string"
+                    },
+                    "plan_path": {
+                        "type": "string"
+                    }
+                }
+            },
+            "outputSchema": {
+                "type": "object",
+                "properties": {
+                    "compile_run_id": {
+                        "type": "string"
+                    },
+                    "candidate_revision": {
+                        "type": "integer"
+                    },
+                    "artifact_ref": {
+                        "type": "string"
+                    }
+                }
+            },
+            "annotations": {
+                "readOnlyHint": false,
+                "idempotency": "conditional",
+                "async": true,
+                "authorization": "planner"
+            }
+        },
+        {
+            "name": "revision.list",
+            "title": "Revision List",
+            "description": "List revisions for a show.",
+            "inputSchema": {
+                "type": "object",
+                "required": [
+                    "show_id"
+                ],
+                "properties": {
+                    "show_id": {
+                        "type": "string"
+                    }
+                }
+            },
+            "outputSchema": {
+                "type": "object",
+                "properties": {
+                    "revisions": {
+                        "type": "array",
+                        "items": {
+                            "type": "object"
+                        }
+                    }
+                }
+            },
+            "annotations": {
+                "readOnlyHint": true,
+                "idempotency": "idempotent",
+                "async": false,
+                "authorization": "operator"
+            }
+        },
+        {
+            "name": "revision.publish",
+            "title": "Revision Publish",
+            "description": "Publish a candidate revision to active status.",
+            "inputSchema": {
+                "type": "object",
+                "required": [
+                    "show_id",
+                    "revision"
+                ],
+                "properties": {
+                    "show_id": {
+                        "type": "string"
+                    },
+                    "revision": {
+                        "type": "integer"
+                    }
+                }
+            },
+            "outputSchema": {
+                "type": "object",
+                "properties": {
+                    "status": {
+                        "type": "string"
+                    }
+                }
+            },
+            "annotations": {
+                "readOnlyHint": false,
+                "idempotency": "conditional",
+                "async": false,
+                "authorization": "operator"
+            }
+        },
+        {
+            "name": "revision.archive",
+            "title": "Revision Archive",
+            "description": "Archive a revision.",
+            "inputSchema": {
+                "type": "object",
+                "required": [
+                    "show_id",
+                    "revision"
+                ],
+                "properties": {
+                    "show_id": {
+                        "type": "string"
+                    },
+                    "revision": {
+                        "type": "integer"
+                    }
+                }
+            },
+            "outputSchema": {
+                "type": "object",
+                "properties": {
+                    "status": {
+                        "type": "string"
+                    }
+                }
+            },
+            "annotations": {
+                "readOnlyHint": false,
+                "idempotency": "conditional",
+                "async": false,
+                "authorization": "operator"
+            }
+        },
+        {
+            "name": "run.start",
+            "title": "Run Start",
+            "description": "Start a live or offline run for a show.",
+            "inputSchema": {
+                "type": "object",
+                "required": [
+                    "show_id"
+                ],
+                "properties": {
+                    "show_id": {
+                        "type": "string"
+                    },
+                    "mode": {
+                        "type": "string",
+                        "enum": [
+                            "live",
+                            "offline"
+                        ]
+                    }
+                }
+            },
+            "outputSchema": {
+                "type": "object",
+                "properties": {
+                    "run_id": {
+                        "type": "string"
+                    },
+                    "status": {
+                        "type": "string"
+                    }
+                }
+            },
+            "annotations": {
+                "readOnlyHint": false,
+                "idempotency": "conditional",
+                "async": true,
+                "authorization": "operator"
+            }
+        },
+        {
+            "name": "run.status",
+            "title": "Run Status",
+            "description": "Query the current status of a run.",
+            "inputSchema": {
+                "type": "object",
+                "required": [
+                    "show_id"
+                ],
+                "properties": {
+                    "show_id": {
+                        "type": "string"
+                    }
+                }
+            },
+            "outputSchema": {
+                "type": "object",
+                "properties": {
+                    "status": {
+                        "type": "string"
+                    },
+                    "current_bar": {
+                        "type": "integer"
+                    }
+                }
+            },
+            "annotations": {
+                "readOnlyHint": true,
+                "idempotency": "idempotent",
+                "async": false,
+                "authorization": "operator"
+            }
+        },
+        {
+            "name": "patch.check",
+            "title": "Patch Check",
+            "description": "Pre-check a patch proposal for authorization and resource impact.",
+            "inputSchema": {
+                "type": "object",
+                "required": [
+                    "patch"
+                ],
+                "properties": {
+                    "patch": {
+                        "type": "object"
+                    }
+                }
+            },
+            "outputSchema": {
+                "type": "object",
+                "properties": {
+                    "authorized": {
+                        "type": "boolean"
+                    },
+                    "diagnostics": {
+                        "type": "array",
+                        "items": {
+                            "type": "object"
+                        }
+                    }
+                }
+            },
+            "annotations": {
+                "readOnlyHint": true,
+                "idempotency": "idempotent",
+                "async": false,
+                "authorization": "planner"
+            }
+        },
+        {
+            "name": "patch.submit",
+            "title": "Patch Submit",
+            "description": "Submit a patch proposal for authorization and activation.",
+            "inputSchema": {
+                "type": "object",
+                "required": [
+                    "patch"
+                ],
+                "properties": {
+                    "patch": {
+                        "type": "object"
+                    }
+                }
+            },
+            "outputSchema": {
+                "type": "object",
+                "properties": {
+                    "patch_id": {
+                        "type": "string"
+                    },
+                    "state": {
+                        "type": "string",
+                        "enum": [
+                            "proposed",
+                            "authorized",
+                            "validated",
+                            "staged",
+                            "activated",
+                            "rejected"
+                        ]
+                    }
+                }
+            },
+            "annotations": {
+                "readOnlyHint": false,
+                "idempotency": "conditional",
+                "async": true,
+                "authorization": "planner"
+            }
+        },
+        {
+            "name": "patch.rollback",
+            "title": "Patch Rollback",
+            "description": "Roll back an active patch.",
+            "inputSchema": {
+                "type": "object",
+                "required": [
+                    "patch_id"
+                ],
+                "properties": {
+                    "patch_id": {
+                        "type": "string"
+                    },
+                    "mode": {
+                        "type": "string",
+                        "enum": [
+                            "deferred",
+                            "immediate",
+                            "partial"
+                        ]
+                    }
+                }
+            },
+            "outputSchema": {
+                "type": "object",
+                "properties": {
+                    "rolled_back": {
+                        "type": "boolean"
+                    }
+                }
+            },
+            "annotations": {
+                "readOnlyHint": false,
+                "idempotency": "conditional",
+                "async": false,
+                "authorization": "operator"
+            }
+        },
+        {
+            "name": "patch.deferred_rollback",
+            "title": "Patch Deferred Rollback",
+            "description": "Trigger anomaly-driven deferred rollback with trace recording.",
+            "inputSchema": {
+                "type": "object",
+                "required": [
+                    "revision",
+                    "patch_id",
+                    "anomaly"
+                ],
+                "properties": {
+                    "revision": {
+                        "type": "integer"
+                    },
+                    "patch_id": {
+                        "type": "string"
+                    },
+                    "anomaly": {
+                        "type": "string"
+                    }
+                }
+            },
+            "outputSchema": {
+                "type": "object",
+                "properties": {
+                    "rolled_back": {
+                        "type": "boolean"
+                    },
+                    "trace_ref": {
+                        "type": "string"
+                    }
+                }
+            },
+            "annotations": {
+                "readOnlyHint": false,
+                "idempotency": "conditional",
+                "async": false,
+                "authorization": "operator"
+            }
+        },
+        {
+            "name": "trace.show",
+            "title": "Trace Show",
+            "description": "Show the trace manifest for a run.",
+            "inputSchema": {
+                "type": "object",
+                "required": [
+                    "show_id",
+                    "revision"
+                ],
+                "properties": {
+                    "show_id": {
+                        "type": "string"
+                    },
+                    "revision": {
+                        "type": "integer"
+                    }
+                }
+            },
+            "outputSchema": {
+                "type": "object",
+                "properties": {
+                    "manifest": {
+                        "type": "object"
+                    }
+                }
+            },
+            "annotations": {
+                "readOnlyHint": true,
+                "idempotency": "idempotent",
+                "async": false,
+                "authorization": "operator"
+            }
+        },
+        {
+            "name": "trace.events",
+            "title": "Trace Events",
+            "description": "Query trace events by bar range.",
+            "inputSchema": {
+                "type": "object",
+                "required": [
+                    "run_id"
+                ],
+                "properties": {
+                    "run_id": {
+                        "type": "string"
+                    },
+                    "from_bar": {
+                        "type": "integer"
+                    },
+                    "to_bar": {
+                        "type": "integer"
+                    },
+                    "kind": {
+                        "type": "string"
+                    }
+                }
+            },
+            "outputSchema": {
+                "type": "object",
+                "properties": {
+                    "events": {
+                        "type": "array",
+                        "items": {
+                            "type": "object"
+                        }
+                    },
+                    "total": {
+                        "type": "integer"
+                    }
+                }
+            },
+            "annotations": {
+                "readOnlyHint": true,
+                "idempotency": "idempotent",
+                "async": false,
+                "authorization": "operator"
+            }
+        },
+        {
+            "name": "eval.run",
+            "title": "Eval Run",
+            "description": "Generate evaluation report from a trace run.",
+            "inputSchema": {
+                "type": "object",
+                "required": [
+                    "trace_bundle_id"
+                ],
+                "properties": {
+                    "trace_bundle_id": {
+                        "type": "string"
+                    },
+                    "dimensions": {
+                        "type": "array",
+                        "items": {
+                            "type": "string",
+                            "enum": [
+                                "sync",
+                                "transition",
+                                "visual_semantic_alignment",
+                                "resource_stability"
+                            ]
+                        }
+                    }
+                }
+            },
+            "outputSchema": {
+                "type": "object",
+                "properties": {
+                    "report_ref": {
+                        "type": "string"
+                    },
+                    "scores": {
+                        "type": "object"
+                    }
+                }
+            },
+            "annotations": {
+                "readOnlyHint": false,
+                "idempotency": "conditional",
+                "async": true,
+                "authorization": "planner"
+            }
+        },
+        {
+            "name": "export.audio",
+            "title": "Export Audio",
+            "description": "Export audio WAV from a trace run.",
+            "inputSchema": {
+                "type": "object",
+                "required": [
+                    "show_id",
+                    "revision"
+                ],
+                "properties": {
+                    "show_id": {
+                        "type": "string"
+                    },
+                    "revision": {
+                        "type": "integer"
+                    }
+                }
+            },
+            "outputSchema": {
+                "type": "object",
+                "properties": {
+                    "artifact_ref": {
+                        "type": "string"
+                    },
+                    "format": {
+                        "type": "string"
+                    }
+                }
+            },
+            "annotations": {
+                "readOnlyHint": false,
+                "idempotency": "conditional",
+                "async": true,
+                "authorization": "operator"
+            }
+        },
+        {
+            "name": "system.doctor",
+            "title": "System Doctor",
+            "description": "Run full pipeline health check.",
+            "inputSchema": {
+                "type": "object",
+                "properties": {}
+            },
+            "outputSchema": {
+                "type": "object",
+                "properties": {
+                    "checks": {
+                        "type": "array",
+                        "items": {
+                            "type": "object"
+                        }
+                    },
+                    "healthy": {
+                        "type": "boolean"
+                    }
+                }
+            },
+            "annotations": {
+                "readOnlyHint": true,
+                "idempotency": "idempotent",
+                "async": false,
+                "authorization": "operator"
+            }
+        },
+        {
+            "name": "system.capabilities",
+            "title": "System Capabilities",
+            "description": "List all available capabilities and their metadata.",
+            "inputSchema": {
+                "type": "object",
+                "properties": {}
+            },
+            "outputSchema": {
+                "type": "object",
+                "properties": {
+                    "capabilities": {
+                        "type": "array",
+                        "items": {
+                            "type": "object"
+                        }
+                    }
+                }
+            },
+            "annotations": {
+                "readOnlyHint": true,
+                "idempotency": "idempotent",
+                "async": false,
+                "authorization": "operator"
+            }
+        }
+    ],
+    "defs": {}
+}

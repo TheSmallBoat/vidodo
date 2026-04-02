@@ -1,0 +1,35 @@
+{
+    "cue_set_id": "cue-full-demo",
+    "topology_ref": "main-stage-grid",
+    "entries": [
+        {
+            "source_ref": "scene/intro_wash",
+            "fixture_group": [
+                "fx-front-wash-01"
+            ],
+            "intensity": 0.9,
+            "color": [
+                0.2,
+                0.4,
+                1.0
+            ],
+            "fade_beats": 4.0,
+            "motion_preset": "slow_pan",
+            "policy": "override"
+        },
+        {
+            "source_ref": "scene/drop_a",
+            "fixture_group": [
+                "fx-front-wash-01",
+                "fx-back-spot-02"
+            ],
+            "intensity": 1.0,
+            "color": [
+                1.0,
+                0.0,
+                0.0
+            ],
+            "fade_beats": 0.5
+        }
+    ]
+}
