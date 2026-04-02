@@ -8,6 +8,7 @@ use vidodo_capability::{
     CapabilityRegistry, RouteTarget, mcp_tool_mappings, resolve_mcp_tool, route,
 };
 use vidodo_compiler::compile_plan;
+use vidodo_compiler::revision::{archive_revision, publish_revision};
 use vidodo_evaluation::evaluate_run;
 use vidodo_ir::{
     AssetRecord, AudioDsl, CompiledRevision, ConstraintSet, CueSet, Diagnostic, LightingTopology,
@@ -209,8 +210,11 @@ fn dispatch(
         RouteTarget::PlanSubmit => dispatch_plan_submit(state, capability, request_id, body),
         RouteTarget::CompileRun => dispatch_compile_run(state, capability, request_id, body),
         RouteTarget::RevisionList => dispatch_revision_list(state, capability, request_id, body),
-        RouteTarget::RevisionPublish | RouteTarget::RevisionArchive => {
-            Ok(ok_envelope(capability, request_id, json!({"note": "stub"})))
+        RouteTarget::RevisionPublish => {
+            dispatch_revision_publish(state, capability, request_id, body)
+        }
+        RouteTarget::RevisionArchive => {
+            dispatch_revision_archive(state, capability, request_id, body)
         }
         RouteTarget::RunStart => dispatch_run_start(state, capability, request_id, body),
         RouteTarget::RunStatus => dispatch_run_status(state, capability, request_id, body),
@@ -414,6 +418,40 @@ fn dispatch_revision_list(
     let records = query_revisions(&state.layout, &show_id)
         .map_err(|msg| err_str(capability, request_id, &msg))?;
     Ok(ok_envelope(capability, request_id, json!({"show_id": show_id, "revisions": records})))
+}
+
+fn dispatch_revision_publish(
+    state: &McpState,
+    capability: &str,
+    request_id: &str,
+    body: &Value,
+) -> Result<Value, Value> {
+    let show_id = require_str(body, "show_id")?;
+    let revision = require_u64(body, "revision")?;
+    publish_revision(&state.layout, &show_id, revision)
+        .map_err(|msg| err_str(capability, request_id, &msg))?;
+    Ok(ok_envelope(
+        capability,
+        request_id,
+        json!({"show_id": show_id, "revision": revision, "status": "published"}),
+    ))
+}
+
+fn dispatch_revision_archive(
+    state: &McpState,
+    capability: &str,
+    request_id: &str,
+    body: &Value,
+) -> Result<Value, Value> {
+    let show_id = require_str(body, "show_id")?;
+    let revision = require_u64(body, "revision")?;
+    archive_revision(&state.layout, &show_id, revision)
+        .map_err(|msg| err_str(capability, request_id, &msg))?;
+    Ok(ok_envelope(
+        capability,
+        request_id,
+        json!({"show_id": show_id, "revision": revision, "status": "archived"}),
+    ))
 }
 
 fn dispatch_run_start(

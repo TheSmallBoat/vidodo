@@ -1,0 +1,5 @@
+{
+    "transport_id": "bad-bus",
+    "bus_kind": "invalid_kind",
+    "protocol": "websocket"
+}

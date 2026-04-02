@@ -13,6 +13,7 @@ use axum::{
 use serde_json::{Value, json};
 use vidodo_capability::{CapabilityRegistry, RouteTarget, route};
 use vidodo_compiler::compile_plan;
+use vidodo_compiler::revision::{archive_revision, publish_revision};
 use vidodo_evaluation::evaluate_run;
 use vidodo_ir::{
     AssetRecord, AudioDsl, CompiledRevision, ConstraintSet, CueSet, Diagnostic, LightingTopology,
@@ -135,8 +136,11 @@ fn dispatch(
 
         // WSH-07 — run/patch/trace/eval/export/revision/system ----------------
         RouteTarget::RevisionList => dispatch_revision_list(state, capability, request_id, body),
-        RouteTarget::RevisionPublish | RouteTarget::RevisionArchive => {
-            Ok(ok_envelope(capability, request_id, json!({"note": "stub — not yet implemented"})))
+        RouteTarget::RevisionPublish => {
+            dispatch_revision_publish(state, capability, request_id, body)
+        }
+        RouteTarget::RevisionArchive => {
+            dispatch_revision_archive(state, capability, request_id, body)
         }
         RouteTarget::RunStart => dispatch_run_start(state, capability, request_id, body),
         RouteTarget::RunStatus => dispatch_run_status(state, capability, request_id, body),
@@ -346,6 +350,40 @@ fn dispatch_revision_list(
     let records = query_revisions(&state.layout, &show_id)
         .map_err(|msg| error_envelope_str(capability, request_id, "SVC-040", &msg))?;
     Ok(ok_envelope(capability, request_id, json!({"show_id": show_id, "revisions": records})))
+}
+
+fn dispatch_revision_publish(
+    state: &AppState,
+    capability: &str,
+    request_id: &str,
+    body: &Value,
+) -> Result<Value, Value> {
+    let show_id = require_str(body, "show_id")?;
+    let revision = require_u64(body, "revision")?;
+    publish_revision(&state.layout, &show_id, revision)
+        .map_err(|msg| error_envelope_str(capability, request_id, "SVC-041", &msg))?;
+    Ok(ok_envelope(
+        capability,
+        request_id,
+        json!({"show_id": show_id, "revision": revision, "status": "published"}),
+    ))
+}
+
+fn dispatch_revision_archive(
+    state: &AppState,
+    capability: &str,
+    request_id: &str,
+    body: &Value,
+) -> Result<Value, Value> {
+    let show_id = require_str(body, "show_id")?;
+    let revision = require_u64(body, "revision")?;
+    archive_revision(&state.layout, &show_id, revision)
+        .map_err(|msg| error_envelope_str(capability, request_id, "SVC-042", &msg))?;
+    Ok(ok_envelope(
+        capability,
+        request_id,
+        json!({"show_id": show_id, "revision": revision, "status": "archived"}),
+    ))
 }
 
 fn dispatch_run_start(
@@ -887,6 +925,18 @@ mod tests {
         build_router(state)
     }
 
+    /// Return an isolated `AppState` backed by a temp artifact store.
+    /// The caller must hold the returned `TempDir` alive for the test duration.
+    fn isolated_state() -> (Arc<AppState>, tempfile::TempDir) {
+        let repo_root = discover_repo_root().expect("repo root");
+        let tmp = tempfile::tempdir().expect("tempdir");
+        let layout = ArtifactLayout::new(tmp.path());
+        let _ = layout.ensure();
+        let state =
+            Arc::new(AppState { registry: CapabilityRegistry::default(), layout, repo_root });
+        (state, tmp)
+    }
+
     async fn post_capability(app: Router, capability: &str, body: &str) -> (StatusCode, Value) {
         let response = app
             .oneshot(
@@ -960,7 +1010,8 @@ mod tests {
             "plan_dir": plan_dir.display().to_string(),
             "assets_file": assets_file.display().to_string()
         });
-        let app = test_app();
+        let (state, _tmp) = isolated_state();
+        let app = build_router(state);
         let (status, json) = post_capability(app, "compile.run", &body.to_string()).await;
         assert_eq!(status, StatusCode::OK);
         assert_eq!(json["status"], "ok");
@@ -983,5 +1034,52 @@ mod tests {
         let (status, json) = post_capability(app, "asset.list", "{}").await;
         assert_eq!(status, StatusCode::OK);
         assert_eq!(json["status"], "ok");
+    }
+
+    #[tokio::test]
+    async fn revision_publish_via_http() {
+        // First compile a revision so there is something to publish
+        let repo_root = discover_repo_root().expect("repo root");
+        let plan_dir = repo_root.join("tests/fixtures/plans/minimal-show");
+        let assets_file = repo_root.join("tests/fixtures/assets/asset-records.json");
+        let compile_body = json!({
+            "plan_dir": plan_dir.display().to_string(),
+            "assets_file": assets_file.display().to_string()
+        });
+        let (state, _tmp) = isolated_state();
+        let app = build_router(Arc::clone(&state));
+        let (status, _) = post_capability(app, "compile.run", &compile_body.to_string()).await;
+        assert_eq!(status, StatusCode::OK);
+
+        let publish_body = json!({"show_id": "show-phase0-minimal", "revision": 1});
+        let app = build_router(state);
+        let (status, json) =
+            post_capability(app, "revision.publish", &publish_body.to_string()).await;
+        assert_eq!(status, StatusCode::OK);
+        assert_eq!(json["status"], "ok");
+        assert_eq!(json["data"]["status"], "published");
+    }
+
+    #[tokio::test]
+    async fn revision_archive_via_http() {
+        let repo_root = discover_repo_root().expect("repo root");
+        let plan_dir = repo_root.join("tests/fixtures/plans/minimal-show");
+        let assets_file = repo_root.join("tests/fixtures/assets/asset-records.json");
+        let compile_body = json!({
+            "plan_dir": plan_dir.display().to_string(),
+            "assets_file": assets_file.display().to_string()
+        });
+        let (state, _tmp) = isolated_state();
+        let app = build_router(Arc::clone(&state));
+        let (status, _) = post_capability(app, "compile.run", &compile_body.to_string()).await;
+        assert_eq!(status, StatusCode::OK);
+
+        let archive_body = json!({"show_id": "show-phase0-minimal", "revision": 1});
+        let app = build_router(state);
+        let (status, json) =
+            post_capability(app, "revision.archive", &archive_body.to_string()).await;
+        assert_eq!(status, StatusCode::OK);
+        assert_eq!(json["status"], "ok");
+        assert_eq!(json["data"]["status"], "archived");
     }
 }

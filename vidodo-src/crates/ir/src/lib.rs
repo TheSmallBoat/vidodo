@@ -1229,6 +1229,165 @@ pub struct CueSet {
 }
 
 // ---------------------------------------------------------------------------
+// Phase 2 — Adapter Plugin Manifest
+// ---------------------------------------------------------------------------
+
+/// Health reporting contract for an adapter plugin.
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+pub struct HealthContract {
+    #[serde(default)]
+    pub reports_ack: bool,
+    #[serde(default)]
+    pub reports_status: bool,
+    #[serde(default)]
+    pub supports_degrade_mode: bool,
+}
+
+/// Manifest for a hardware adapter plugin — maps to adapter-plugin-manifest.v0.json.
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+pub struct AdapterPluginManifest {
+    pub plugin_id: String,
+    pub plugin_kind: String,
+    pub backend_kind: String,
+    pub version: String,
+    pub capabilities: Vec<String>,
+    #[serde(default)]
+    pub target_topology_types: Vec<String>,
+    #[serde(default)]
+    pub health_contract: Option<HealthContract>,
+    #[serde(default)]
+    pub status: Option<String>,
+}
+
+// ---------------------------------------------------------------------------
+// Phase 2 — Resource Hub Descriptor
+// ---------------------------------------------------------------------------
+
+/// Compatibility constraints for a resource hub.
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+pub struct HubCompatibility {
+    #[serde(default)]
+    pub runtime: Vec<String>,
+    #[serde(default)]
+    pub backends: Vec<String>,
+    #[serde(default)]
+    pub schema_versions: Vec<String>,
+}
+
+/// Descriptor for an external resource hub — maps to resource-hub-descriptor.v0.json.
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+pub struct ResourceHubDescriptor {
+    pub hub_id: String,
+    pub resource_kind: String,
+    pub version: String,
+    pub locator: String,
+    pub provides: Vec<String>,
+    #[serde(default)]
+    pub compatibility: Option<HubCompatibility>,
+    #[serde(default)]
+    pub status: Option<String>,
+    #[serde(default)]
+    pub tags: Vec<String>,
+}
+
+// ---------------------------------------------------------------------------
+// Phase 2 — Deployment Objects
+// ---------------------------------------------------------------------------
+
+/// Describes a node participating in distributed device orchestration.
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+pub struct DistributedNodeDescriptor {
+    pub node_id: String,
+    pub node_role: String,
+    #[serde(default)]
+    pub host_ref: Option<String>,
+    #[serde(default)]
+    pub plugin_refs: Vec<String>,
+    #[serde(default)]
+    pub assigned_topologies: Vec<String>,
+    #[serde(default)]
+    pub resource_hub_mounts: Vec<String>,
+    #[serde(default)]
+    pub transport_refs: Vec<String>,
+    #[serde(default)]
+    pub health_endpoint: Option<String>,
+    #[serde(default)]
+    pub status: Option<String>,
+}
+
+/// Describes a concrete device deployment — single-node or multi-node.
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+pub struct DeploymentProfile {
+    pub deployment_id: String,
+    pub mode: String,
+    pub node_refs: Vec<String>,
+    #[serde(default)]
+    pub transport_refs: Vec<String>,
+    #[serde(default)]
+    pub time_authority: Option<String>,
+    #[serde(default)]
+    pub resource_prewarm_policy: Option<String>,
+    #[serde(default)]
+    pub rollout_strategy: Option<String>,
+    #[serde(default)]
+    pub failure_policy: Option<String>,
+    #[serde(default)]
+    pub trace_policy: Option<String>,
+}
+
+/// Semantic transport specification between distributed nodes.
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+pub struct TransportContract {
+    pub transport_id: String,
+    pub bus_kind: String,
+    pub protocol: String,
+    #[serde(default)]
+    pub topology: Option<String>,
+    #[serde(default)]
+    pub ordering: Option<String>,
+    #[serde(default)]
+    pub delivery_guarantee: Option<String>,
+    #[serde(default)]
+    pub latency_budget_ms: Option<u64>,
+    #[serde(default)]
+    pub reconnect_policy: Option<String>,
+    #[serde(default)]
+    pub security_profile: Option<String>,
+}
+
+// ---------------------------------------------------------------------------
+// Phase 2 — Health & Degradation
+// ---------------------------------------------------------------------------
+
+/// A snapshot of a backend's health status.
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+pub struct BackendHealthSnapshot {
+    pub backend_ref: String,
+    pub plugin_ref: String,
+    pub status: String,
+    pub timestamp: String,
+    #[serde(default)]
+    pub latency_ms: Option<f64>,
+    #[serde(default)]
+    pub error_count: Option<u64>,
+    #[serde(default)]
+    pub last_ack_lag_ms: Option<f64>,
+    #[serde(default)]
+    pub degrade_reason: Option<String>,
+}
+
+/// A degradation mode that can be applied to a backend.
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+pub struct DegradeMode {
+    pub mode: String,
+    pub reason: String,
+    #[serde(default)]
+    pub affected_backends: Vec<String>,
+    #[serde(default)]
+    pub fallback_action: Option<String>,
+}
+
+// ---------------------------------------------------------------------------
 // Tests
 // ---------------------------------------------------------------------------
 
@@ -1296,5 +1455,133 @@ mod tests {
         // round-trip
         let back: CueSet = serde_json::from_str(&serde_json::to_string(&cs).unwrap()).unwrap();
         assert_eq!(cs, back);
+    }
+
+    // --- Phase 2 serde round-trip tests ---
+
+    #[test]
+    fn adapter_plugin_manifest_serde_round_trip() {
+        let manifest = AdapterPluginManifest {
+            plugin_id: String::from("visual-led-wall"),
+            plugin_kind: String::from("visual_output"),
+            backend_kind: String::from("led_matrix"),
+            version: String::from("0.1.0"),
+            capabilities: vec![String::from("scene_switch"), String::from("fade")],
+            target_topology_types: vec![String::from("display_topology")],
+            health_contract: Some(HealthContract {
+                reports_ack: true,
+                reports_status: true,
+                supports_degrade_mode: true,
+            }),
+            status: Some(String::from("ready")),
+        };
+        let json = serde_json::to_string(&manifest).unwrap();
+        let back: AdapterPluginManifest = serde_json::from_str(&json).unwrap();
+        assert_eq!(manifest, back);
+    }
+
+    #[test]
+    fn resource_hub_descriptor_serde_round_trip() {
+        let hub = ResourceHubDescriptor {
+            hub_id: String::from("audio-pack-standard"),
+            resource_kind: String::from("audio_asset_hub"),
+            version: String::from("1.0.0"),
+            locator: String::from("file:///hubs/audio-standard"),
+            provides: vec![String::from("wav"), String::from("aif")],
+            compatibility: Some(HubCompatibility {
+                runtime: vec![String::from("vidodo-runtime-0.1")],
+                backends: vec![],
+                schema_versions: vec![String::from("v0")],
+            }),
+            status: Some(String::from("available")),
+            tags: vec![String::from("production")],
+        };
+        let json = serde_json::to_string(&hub).unwrap();
+        let back: ResourceHubDescriptor = serde_json::from_str(&json).unwrap();
+        assert_eq!(hub, back);
+    }
+
+    #[test]
+    fn distributed_node_descriptor_serde_round_trip() {
+        let node = DistributedNodeDescriptor {
+            node_id: String::from("node-visual-a"),
+            node_role: String::from("visual_renderer"),
+            host_ref: Some(String::from("192.168.1.10")),
+            plugin_refs: vec![String::from("visual-led-wall")],
+            assigned_topologies: vec![String::from("display-wall-left")],
+            resource_hub_mounts: vec![String::from("glsl-hub-v2")],
+            transport_refs: vec![String::from("control-bus-ws")],
+            health_endpoint: Some(String::from("http://192.168.1.10:7401/health")),
+            status: Some(String::from("online")),
+        };
+        let json = serde_json::to_string(&node).unwrap();
+        let back: DistributedNodeDescriptor = serde_json::from_str(&json).unwrap();
+        assert_eq!(node, back);
+    }
+
+    #[test]
+    fn deployment_profile_serde_round_trip() {
+        let profile = DeploymentProfile {
+            deployment_id: String::from("show-2026-wall"),
+            mode: String::from("multi_node"),
+            node_refs: vec![String::from("node-visual-a"), String::from("node-audio-b")],
+            transport_refs: vec![String::from("control-bus-ws")],
+            time_authority: Some(String::from("node-audio-b")),
+            resource_prewarm_policy: Some(String::from("eager")),
+            rollout_strategy: Some(String::from("rolling")),
+            failure_policy: Some(String::from("isolate_and_degrade")),
+            trace_policy: Some(String::from("full")),
+        };
+        let json = serde_json::to_string(&profile).unwrap();
+        let back: DeploymentProfile = serde_json::from_str(&json).unwrap();
+        assert_eq!(profile, back);
+    }
+
+    #[test]
+    fn transport_contract_serde_round_trip() {
+        let contract = TransportContract {
+            transport_id: String::from("control-bus-ws"),
+            bus_kind: String::from("control"),
+            protocol: String::from("websocket"),
+            topology: Some(String::from("star")),
+            ordering: Some(String::from("ordered")),
+            delivery_guarantee: Some(String::from("at_least_once")),
+            latency_budget_ms: Some(50),
+            reconnect_policy: Some(String::from("exponential_backoff")),
+            security_profile: Some(String::from("tls")),
+        };
+        let json = serde_json::to_string(&contract).unwrap();
+        let back: TransportContract = serde_json::from_str(&json).unwrap();
+        assert_eq!(contract, back);
+    }
+
+    #[test]
+    fn backend_health_snapshot_serde_round_trip() {
+        let snap = BackendHealthSnapshot {
+            backend_ref: String::from("display-wall-left"),
+            plugin_ref: String::from("visual-led-wall"),
+            status: String::from("degraded"),
+            timestamp: String::from("2026-04-03T12:00:00Z"),
+            latency_ms: Some(12.5),
+            error_count: Some(3),
+            last_ack_lag_ms: Some(8.2),
+            degrade_reason: Some(String::from("gpu_thermal_throttle")),
+        };
+        let json = serde_json::to_string(&snap).unwrap();
+        let back: BackendHealthSnapshot = serde_json::from_str(&json).unwrap();
+        assert_eq!(snap, back);
+    }
+
+    #[test]
+    fn degrade_mode_serde_round_trip() {
+        let mode = DegradeMode {
+            mode: String::from("reduced_resolution"),
+            reason: String::from("gpu_thermal_throttle"),
+            affected_backends: vec![String::from("display-wall-left")],
+            fallback_action: Some(String::from("lower_fps")),
+        };
+        let json = serde_json::to_string(&mode).unwrap();
+        let back: DegradeMode = serde_json::from_str(&json).unwrap();
+        assert_eq!(mode, back);
     }
 }

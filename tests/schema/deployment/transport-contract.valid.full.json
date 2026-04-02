@@ -1,0 +1,11 @@
+{
+    "transport_id": "state-bus-nats",
+    "bus_kind": "state",
+    "protocol": "nats",
+    "topology": "star",
+    "ordering": "ordered",
+    "delivery_guarantee": "at_least_once",
+    "latency_budget_ms": 50,
+    "reconnect_policy": "exponential_backoff",
+    "security_profile": "tls"
+}

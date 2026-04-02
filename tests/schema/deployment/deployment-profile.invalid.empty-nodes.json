@@ -1,0 +1,5 @@
+{
+    "deployment_id": "show-bad",
+    "mode": "multi_node",
+    "node_refs": []
+}

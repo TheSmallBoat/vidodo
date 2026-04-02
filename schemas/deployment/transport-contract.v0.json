@@ -1,0 +1,63 @@
+{
+    "$schema": "https://json-schema.org/draft/2020-12/schema",
+    "$id": "av.deployment.transport-contract.v0",
+    "title": "Transport Contract",
+    "description": "Semantic transport specification between distributed nodes.",
+    "type": "object",
+    "required": [
+        "transport_id",
+        "bus_kind",
+        "protocol"
+    ],
+    "properties": {
+        "transport_id": {
+            "type": "string"
+        },
+        "bus_kind": {
+            "type": "string",
+            "enum": [
+                "control",
+                "state",
+                "health"
+            ]
+        },
+        "protocol": {
+            "type": "string"
+        },
+        "topology": {
+            "type": "string",
+            "enum": [
+                "star",
+                "mesh",
+                "ring",
+                "bus"
+            ]
+        },
+        "ordering": {
+            "type": "string",
+            "enum": [
+                "ordered",
+                "unordered"
+            ]
+        },
+        "delivery_guarantee": {
+            "type": "string",
+            "enum": [
+                "at_most_once",
+                "at_least_once",
+                "exactly_once"
+            ]
+        },
+        "latency_budget_ms": {
+            "type": "integer",
+            "minimum": 0
+        },
+        "reconnect_policy": {
+            "type": "string"
+        },
+        "security_profile": {
+            "type": "string"
+        }
+    },
+    "additionalProperties": false
+}

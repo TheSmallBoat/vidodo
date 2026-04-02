@@ -1,0 +1,19 @@
+{
+    "node_id": "node-visual-a",
+    "node_role": "visual_renderer",
+    "host_ref": "192.168.1.10",
+    "plugin_refs": [
+        "visual-led-wall"
+    ],
+    "assigned_topologies": [
+        "display-wall-left"
+    ],
+    "resource_hub_mounts": [
+        "glsl-hub-v2"
+    ],
+    "transport_refs": [
+        "control-bus-ws"
+    ],
+    "health_endpoint": "http://192.168.1.10:7401/health",
+    "status": "online"
+}

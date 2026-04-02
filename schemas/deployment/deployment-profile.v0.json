@@ -1,0 +1,73 @@
+{
+    "$schema": "https://json-schema.org/draft/2020-12/schema",
+    "$id": "av.deployment.deployment-profile.v0",
+    "title": "Deployment Profile",
+    "description": "Describes a concrete device deployment — single-node or multi-node.",
+    "type": "object",
+    "required": [
+        "deployment_id",
+        "mode",
+        "node_refs"
+    ],
+    "properties": {
+        "deployment_id": {
+            "type": "string"
+        },
+        "mode": {
+            "type": "string",
+            "enum": [
+                "single_node",
+                "multi_node"
+            ]
+        },
+        "node_refs": {
+            "type": "array",
+            "items": {
+                "type": "string"
+            },
+            "minItems": 1
+        },
+        "transport_refs": {
+            "type": "array",
+            "items": {
+                "type": "string"
+            }
+        },
+        "time_authority": {
+            "type": "string"
+        },
+        "resource_prewarm_policy": {
+            "type": "string",
+            "enum": [
+                "eager",
+                "lazy",
+                "manual"
+            ]
+        },
+        "rollout_strategy": {
+            "type": "string",
+            "enum": [
+                "all_at_once",
+                "rolling",
+                "canary"
+            ]
+        },
+        "failure_policy": {
+            "type": "string",
+            "enum": [
+                "halt_all",
+                "isolate_and_degrade",
+                "continue_best_effort"
+            ]
+        },
+        "trace_policy": {
+            "type": "string",
+            "enum": [
+                "full",
+                "sampled",
+                "off"
+            ]
+        }
+    },
+    "additionalProperties": false
+}

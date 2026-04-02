@@ -1,0 +1,66 @@
+{
+    "$schema": "https://json-schema.org/draft/2020-12/schema",
+    "$id": "av.deployment.distributed-node-descriptor.v0",
+    "title": "Distributed Node Descriptor",
+    "description": "Describes a node participating in distributed device orchestration.",
+    "type": "object",
+    "required": [
+        "node_id",
+        "node_role"
+    ],
+    "properties": {
+        "node_id": {
+            "type": "string"
+        },
+        "node_role": {
+            "type": "string",
+            "enum": [
+                "visual_renderer",
+                "audio_renderer",
+                "lighting_controller",
+                "coordinator",
+                "observer"
+            ]
+        },
+        "host_ref": {
+            "type": "string"
+        },
+        "plugin_refs": {
+            "type": "array",
+            "items": {
+                "type": "string"
+            }
+        },
+        "assigned_topologies": {
+            "type": "array",
+            "items": {
+                "type": "string"
+            }
+        },
+        "resource_hub_mounts": {
+            "type": "array",
+            "items": {
+                "type": "string"
+            }
+        },
+        "transport_refs": {
+            "type": "array",
+            "items": {
+                "type": "string"
+            }
+        },
+        "health_endpoint": {
+            "type": "string"
+        },
+        "status": {
+            "type": "string",
+            "enum": [
+                "online",
+                "degraded",
+                "offline",
+                "provisioning"
+            ]
+        }
+    },
+    "additionalProperties": false
+}

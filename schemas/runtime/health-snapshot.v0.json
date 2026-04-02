@@ -1,0 +1,50 @@
+{
+    "$schema": "https://json-schema.org/draft/2020-12/schema",
+    "$id": "av.runtime.health-snapshot.v0",
+    "title": "Backend Health Snapshot",
+    "description": "A point-in-time health report from a backend adapter plugin.",
+    "type": "object",
+    "required": [
+        "backend_ref",
+        "plugin_ref",
+        "status",
+        "timestamp"
+    ],
+    "properties": {
+        "backend_ref": {
+            "type": "string"
+        },
+        "plugin_ref": {
+            "type": "string"
+        },
+        "status": {
+            "type": "string",
+            "enum": [
+                "healthy",
+                "degraded",
+                "offline",
+                "unknown"
+            ]
+        },
+        "timestamp": {
+            "type": "string",
+            "format": "date-time"
+        },
+        "latency_ms": {
+            "type": "number",
+            "minimum": 0
+        },
+        "error_count": {
+            "type": "integer",
+            "minimum": 0
+        },
+        "last_ack_lag_ms": {
+            "type": "number",
+            "minimum": 0
+        },
+        "degrade_reason": {
+            "type": "string"
+        }
+    },
+    "additionalProperties": false
+}

@@ -1,0 +1,16 @@
+{
+    "deployment_id": "show-2026-multi",
+    "mode": "multi_node",
+    "node_refs": [
+        "node-visual-a",
+        "node-audio-b"
+    ],
+    "transport_refs": [
+        "control-bus-ws"
+    ],
+    "time_authority": "node-audio-b",
+    "resource_prewarm_policy": "eager",
+    "rollout_strategy": "rolling",
+    "failure_policy": "isolate_and_degrade",
+    "trace_policy": "full"
+}

@@ -22,4 +22,5 @@ vidodo-trace = { path = "../../crates/trace" }
 vidodo-validator = { path = "../../crates/validator" }
 
 [dev-dependencies]
+tempfile.workspace = true
 tower.workspace = true
