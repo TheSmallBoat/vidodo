@@ -1,12 +1,12 @@
 use serde::{Deserialize, Serialize};
 use vidodo_ir::{
-    AudioEvent, BackendAck, CompiledRevision, EventRecord, MusicalTime, OutputBinding,
-    PatchDecision, PatchEvent, ResourceSample, RunSummary, RuntimePayload, ShowPatchState,
-    ShowSemantic, ShowState, ShowTransition, TimingEvent, VisualEvent,
+    AudioEvent, BackendAck, CompiledRevision, EventRecord, MusicalTime, PatchDecision, PatchEvent,
+    ResourceSample, RunSummary, RuntimePayload, ShowState, TimingEvent, VisualEvent,
 };
 
 pub mod clock;
 pub mod lookahead;
+pub mod show_state;
 
 /// Trait for dispatching events to audio and visual backends.
 ///
@@ -102,8 +102,13 @@ pub fn simulate_run_with_backend(
         .first()
         .map(|action| action.scene_id.clone())
         .unwrap_or_else(|| String::from("scene_intro"));
-    let mut final_show_state =
-        default_show_state(compiled, &active_visual_scene, &active_audio_layers, 1, "intro");
+    let mut final_show_state = show_state::build_show_state(
+        compiled,
+        &active_visual_scene,
+        &active_audio_layers,
+        1,
+        "intro",
+    );
 
     for section in &compiled.structure_ir.sections {
         let phrase = section.order as u32 + 1;
@@ -277,7 +282,7 @@ pub fn simulate_run_with_backend(
             }
         }
 
-        final_show_state = default_show_state(
+        final_show_state = show_state::build_show_state(
             compiled,
             &active_visual_scene,
             &active_audio_layers,
@@ -320,76 +325,7 @@ pub fn simulate_run_with_backend(
     ScheduledRun { events, summary, final_show_state, patch_decisions, resource_samples }
 }
 
-fn default_show_state(
-    compiled: &CompiledRevision,
-    active_visual_scene: &str,
-    active_audio_layers: &[String],
-    bar: u32,
-    section_id: &str,
-) -> ShowState {
-    let phrase = compiled
-        .structure_ir
-        .sections
-        .iter()
-        .find(|section| section.section_id == section_id)
-        .map(|section| section.order as u32 + 1)
-        .unwrap_or(1);
-    let section_plan =
-        compiled.set_plan.sections.iter().find(|section| section.section_id == section_id);
-
-    ShowState {
-        show_id: compiled.show_id.clone(),
-        revision: compiled.revision,
-        mode: compiled.set_plan.mode.clone(),
-        time: MusicalTime::at_bar(bar, phrase, section_id.to_string(), 128.0),
-        semantic: ShowSemantic {
-            energy: section_plan.and_then(|section| section.energy_target).unwrap_or(0.5),
-            density: section_plan.and_then(|section| section.density_target).unwrap_or(0.5),
-            tension: 0.6,
-            brightness: if active_visual_scene.contains("drop") { 0.8 } else { 0.3 },
-            motion: if active_visual_scene.contains("drop") { 0.7 } else { 0.2 },
-            intent: compiled.set_plan.goal.intent.clone(),
-        },
-        transition: ShowTransition {
-            state: String::from("steady"),
-            from_scene: active_visual_scene.to_string(),
-            to_scene: active_visual_scene.to_string(),
-            window_open: true,
-        },
-        visual_output: OutputBinding {
-            backend_id: String::from("fake_visual_backend"),
-            topology_ref: String::from("flat-display-a"),
-            calibration_profile: String::from("default-calibration"),
-            active_group: active_visual_scene.to_string(),
-        },
-        audio_output: OutputBinding {
-            backend_id: String::from("fake_audio_backend"),
-            topology_ref: String::from("stereo-main"),
-            calibration_profile: String::from("default-audio-calibration"),
-            active_group: String::from("stereo-main"),
-        },
-        patch: ShowPatchState {
-            allowed: !compiled.constraint_set.allowed_patch_scopes.is_empty(),
-            scope: compiled
-                .constraint_set
-                .allowed_patch_scopes
-                .first()
-                .cloned()
-                .unwrap_or_else(|| String::from("disabled")),
-            locked_sections: compiled.constraint_set.locked_sections.clone(),
-        },
-        adapter_plugins: std::collections::BTreeMap::from([
-            (String::from("audio"), String::from("plugin.audio.fake.v0")),
-            (String::from("visual"), String::from("plugin.visual.fake.v0")),
-        ]),
-        resource_hubs: std::collections::BTreeMap::from([
-            (String::from("audio"), String::from("hub.audio.fixture.v0")),
-            (String::from("visual"), String::from("hub.visual.fixture.v0")),
-        ]),
-        active_audio_layers: active_audio_layers.to_vec(),
-        active_visual_scene: active_visual_scene.to_string(),
-    }
-}
+// ShowState construction logic lives in show_state module.
 
 #[cfg(test)]
 mod tests {

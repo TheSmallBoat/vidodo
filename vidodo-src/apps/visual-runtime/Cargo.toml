@@ -7,3 +7,8 @@ authors.workspace = true
 repository.workspace = true
 
 [dependencies]
+serde.workspace = true
+serde_json.workspace = true
+vidodo-ir = { path = "../../crates/ir" }
+vidodo-storage = { path = "../../crates/storage" }
+vidodo-trace = { path = "../../crates/trace" }

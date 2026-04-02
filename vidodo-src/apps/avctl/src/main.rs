@@ -12,16 +12,18 @@ use vidodo_compiler::revision::{
 use vidodo_evaluation::evaluate_run;
 use vidodo_ir::{
     AssetRecord, AudioDsl, CompiledRevision, ConstraintSet, Diagnostic, LivePatchProposal,
-    PlanBundle, ResponseEnvelope, SetPlan, VisualDsl,
+    PatchDecision, PlanBundle, ResponseEnvelope, SetPlan, VisualDsl,
 };
-use vidodo_patch_manager::{apply_patch, check_patch, rollback_patch};
+use vidodo_patch_manager::{apply_patch, check_patch, deferred_rollback, rollback_patch};
 use vidodo_scheduler::{RunStatusRecord, simulate_run};
 use vidodo_storage::{
     ArtifactLayout, AssetIngestRequest, AssetQuery, discover_repo_root, get_asset, ingest_assets,
     list_asset_analysis, list_asset_jobs, list_assets, list_compile_assets, read_json, slug,
     write_json,
 };
-use vidodo_trace::{export_audio, load_events, load_manifest, manifest_path, write_trace};
+use vidodo_trace::{
+    export_audio, filter_events_by_bar, load_events, load_manifest, manifest_path, write_trace,
+};
 use vidodo_validator::validate_plan;
 
 fn main() -> ExitCode {
@@ -756,6 +758,75 @@ fn handle_patch(context: &CommandContext, args: &[String]) -> Result<(), ExitCod
                 )],
             )
         }
+        [command, rest @ ..] if command == "deferred-rollback" => {
+            let capability = "patch.deferred_rollback";
+            let request_id = "req-patch-deferred-rollback";
+            let show_id = required_flag(rest, "--show-id")
+                .map_err(|message| emit_error(capability, request_id, "CLI-053", message))?;
+            let patch_id = required_flag(rest, "--patch-id")
+                .map_err(|message| emit_error(capability, request_id, "CLI-054", message))?;
+            let anomaly = required_flag(rest, "--anomaly")
+                .map_err(|message| emit_error(capability, request_id, "CLI-055", message))?;
+            let run_id = optional_flag(rest, "--run-id");
+            let revision = load_latest_revision(context, &show_id)
+                .map_err(|message| emit_error(capability, request_id, "CLI-056", message))?;
+            let decision =
+                deferred_rollback(&revision, &patch_id, &anomaly).map_err(|diagnostic| {
+                    let _ = print_response(
+                        capability,
+                        request_id,
+                        "error",
+                        json!({}),
+                        vec![*diagnostic],
+                        vec![],
+                        vec![],
+                    );
+                    ExitCode::from(1)
+                })?;
+            let rollback_path = context
+                .layout
+                .revisions
+                .join(slug(&show_id))
+                .join(format!("deferred-rollback-{patch_id}.json"));
+            write_json(&rollback_path, &decision)
+                .map_err(|message| emit_error(capability, request_id, "CLI-057", message))?;
+
+            // If a run-id is provided, append the rollback decision to that run's trace
+            let mut artifacts = vec![relative_to_repo(context, &rollback_path)];
+            if let Some(ref rid) = run_id {
+                let trace_decisions_path =
+                    context.layout.trace_dir(rid).join("patch-decisions.jsonl");
+                if trace_decisions_path.exists() {
+                    let mut existing: Vec<PatchDecision> =
+                        vidodo_storage::read_jsonl(&trace_decisions_path)
+                            .unwrap_or_else(|_| Vec::new());
+                    existing.push(decision.clone());
+                    vidodo_storage::write_jsonl(&trace_decisions_path, &existing).map_err(
+                        |message| emit_error(capability, request_id, "CLI-058", message),
+                    )?;
+                    artifacts.push(relative_to_repo(context, &trace_decisions_path));
+                }
+            }
+
+            print_response(
+                capability,
+                request_id,
+                "ok",
+                json!({
+                    "show_id": show_id,
+                    "patch_id": patch_id,
+                    "decision": decision.decision,
+                    "fallback_revision": decision.fallback_revision,
+                    "anomaly": anomaly
+                }),
+                vec![],
+                artifacts,
+                vec![format!(
+                    "run `avctl run start --show-id {} --revision {}` to resume from the fallback revision",
+                    show_id, decision.fallback_revision
+                )],
+            )
+        }
         _ => Err(ExitCode::from(2)),
     }
 }
@@ -784,8 +855,16 @@ fn handle_trace(context: &CommandContext, args: &[String]) -> Result<(), ExitCod
             let request_id = "req-trace-events";
             let run_id = required_flag(rest, "--run-id")
                 .map_err(|message| emit_error(capability, request_id, "CLI-062", message))?;
-            let events = load_events(&context.layout, &run_id)
+            let all_events = load_events(&context.layout, &run_id)
                 .map_err(|message| emit_error(capability, request_id, "CLI-063", message))?;
+            let from_bar = optional_flag(rest, "--from-bar").and_then(|v| v.parse::<u32>().ok());
+            let to_bar = optional_flag(rest, "--to-bar").and_then(|v| v.parse::<u32>().ok());
+            let events = match (from_bar, to_bar) {
+                (Some(from), Some(to)) => filter_events_by_bar(&all_events, from, to),
+                (Some(from), None) => filter_events_by_bar(&all_events, from, u32::MAX),
+                (None, Some(to)) => filter_events_by_bar(&all_events, 0, to),
+                (None, None) => all_events,
+            };
             let event_log = context.layout.trace_dir(&run_id).join("events.jsonl");
             print_response(
                 capability,
@@ -793,6 +872,7 @@ fn handle_trace(context: &CommandContext, args: &[String]) -> Result<(), ExitCod
                 "ok",
                 json!({
                     "run_id": run_id,
+                    "event_count": events.len(),
                     "events": events
                 }),
                 vec![],
@@ -1125,8 +1205,11 @@ fn print_usage() {
     eprintln!("avctl patch check --show-id <show-id> --patch-file <path>");
     eprintln!("avctl patch submit --show-id <show-id> --patch-file <path>");
     eprintln!("avctl patch rollback --show-id <show-id> --patch-id <patch-id>");
+    eprintln!(
+        "avctl patch deferred-rollback --show-id <show-id> --patch-id <id> --anomaly <reason> [--run-id <run-id>]"
+    );
     eprintln!("avctl trace show --run-id <run-id>");
-    eprintln!("avctl trace events --run-id <run-id>");
+    eprintln!("avctl trace events --run-id <run-id> [--from-bar N] [--to-bar N]");
     eprintln!("avctl eval run --show-id <show-id> [--run-id <run-id>]");
 }
 

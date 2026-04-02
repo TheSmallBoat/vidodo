@@ -187,6 +187,45 @@ pub fn rollback_patch(
     revision: &CompiledRevision,
     patch_id: &str,
 ) -> Result<PatchDecision, Box<Diagnostic>> {
+    rollback_patch_with_reason(revision, patch_id, "manual rollback requested")
+}
+
+/// Trigger a deferred rollback due to an anomaly detected during a run.
+///
+/// The deferred rollback produces a `PatchDecision` with
+/// `decision = "deferred_rollback"` and the supplied anomaly reason.
+/// The caller is responsible for recording the decision in the trace bundle.
+pub fn deferred_rollback(
+    revision: &CompiledRevision,
+    patch_id: &str,
+    anomaly: &str,
+) -> Result<PatchDecision, Box<Diagnostic>> {
+    let Some(existing) =
+        revision.patch_history.iter().find(|decision| decision.patch_id == patch_id)
+    else {
+        return Err(Box::new(Diagnostic::error(
+            "PAT-010",
+            format!("patch {} was not found in revision {}", patch_id, revision.revision),
+        )));
+    };
+
+    Ok(PatchDecision {
+        patch_id: existing.patch_id.clone(),
+        base_revision: revision.revision,
+        candidate_revision: existing.fallback_revision,
+        decision: String::from("deferred_rollback"),
+        window: existing.window.clone(),
+        scope: existing.scope.clone(),
+        fallback_revision: existing.fallback_revision,
+        reasons: vec![format!("deferred rollback: {anomaly}")],
+    })
+}
+
+fn rollback_patch_with_reason(
+    revision: &CompiledRevision,
+    patch_id: &str,
+    reason: &str,
+) -> Result<PatchDecision, Box<Diagnostic>> {
     let Some(existing) =
         revision.patch_history.iter().find(|decision| decision.patch_id == patch_id)
     else {
@@ -204,13 +243,13 @@ pub fn rollback_patch(
         window: existing.window.clone(),
         scope: existing.scope.clone(),
         fallback_revision: existing.fallback_revision,
-        reasons: vec![String::from("manual rollback requested")],
+        reasons: vec![String::from(reason)],
     })
 }
 
 #[cfg(test)]
 mod tests {
-    use super::{apply_patch, check_patch, rollback_patch};
+    use super::{apply_patch, check_patch, deferred_rollback, rollback_patch};
     use vidodo_compiler::compile_plan;
     use vidodo_ir::{LivePatchProposal, PatchChange, PatchScope, PlanBundle};
 
@@ -320,5 +359,29 @@ mod tests {
             rollback_patch(&patched, "patch-phase0-pad-swap").expect("rollback should succeed");
         assert_eq!(rollback.decision, "rolled_back");
         assert_eq!(rollback.fallback_revision, 1);
+    }
+
+    #[test]
+    fn deferred_rollback_on_anomaly() {
+        let compiled =
+            compile_plan(&PlanBundle::minimal("show-phase0")).expect("plan should compile");
+        let proposal = minimal_proposal("patch-phase0-pad-swap", 1);
+        let patched = apply_patch(&compiled, &proposal).expect("patch should apply");
+
+        let decision =
+            deferred_rollback(&patched, "patch-phase0-pad-swap", "resource_overload: GPU > 90%")
+                .expect("deferred rollback should succeed");
+        assert_eq!(decision.decision, "deferred_rollback");
+        assert_eq!(decision.candidate_revision, 1); // restored to fallback
+        assert!(decision.reasons[0].contains("resource_overload"));
+    }
+
+    #[test]
+    fn deferred_rollback_unknown_patch_fails() {
+        let compiled =
+            compile_plan(&PlanBundle::minimal("show-phase0")).expect("plan should compile");
+        let result = deferred_rollback(&compiled, "no-such-patch", "anomaly");
+        assert!(result.is_err());
+        assert_eq!(result.unwrap_err().code, "PAT-010");
     }
 }

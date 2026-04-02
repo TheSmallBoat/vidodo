@@ -358,6 +358,24 @@ pub struct BeatTrackAnalysis {
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct SectionBoundary {
+    pub start_bar: u32,
+    pub end_bar: u32,
+    pub label: String,
+    pub confidence: u32,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct SectionSegmentationAnalysis {
+    pub asset_id: String,
+    pub analyzer: String,
+    pub analyzer_version: String,
+    pub probe: AudioProbeSummary,
+    pub sections: Vec<SectionBoundary>,
+    pub source_size_bytes: u64,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct AssetIngestReport {
     pub run: IngestionRun,
     #[serde(default)]

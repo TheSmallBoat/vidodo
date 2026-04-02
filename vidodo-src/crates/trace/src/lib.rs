@@ -73,6 +73,19 @@ pub fn load_events(layout: &ArtifactLayout, run_id: &str) -> Result<Vec<EventRec
     read_jsonl(&layout.trace_dir(run_id).join("events.jsonl"))
 }
 
+/// Filter events to those whose `musical_time.bar` falls within `[from_bar, to_bar]` (inclusive).
+pub fn filter_events_by_bar(
+    events: &[EventRecord],
+    from_bar: u32,
+    to_bar: u32,
+) -> Vec<EventRecord> {
+    events
+        .iter()
+        .filter(|event| event.musical_time.bar >= from_bar && event.musical_time.bar <= to_bar)
+        .cloned()
+        .collect()
+}
+
 pub fn manifest_path(layout: &ArtifactLayout, run_id: &str) -> PathBuf {
     layout.trace_dir(run_id).join("manifest.json")
 }
@@ -267,5 +280,26 @@ mod tests {
                 .expect("read manifest");
         assert!(manifest.export_ref.is_some());
         assert!(manifest.export_ref.unwrap().contains("mix.wav"));
+    }
+
+    #[test]
+    fn filter_events_by_bar_selects_range() {
+        let compiled = compile_plan(&PlanBundle::minimal("show-filter")).expect("compile");
+        let run = simulate_run(&compiled, "run-filter");
+        // Ensure we have events spanning multiple bars
+        assert!(!run.events.is_empty());
+        let all_bars: Vec<u32> = run.events.iter().map(|e| e.musical_time.bar).collect();
+        let min_bar = *all_bars.iter().min().unwrap();
+        let max_bar = *all_bars.iter().max().unwrap();
+        assert!(max_bar > min_bar, "need events across multiple bars");
+
+        // Filter a subset
+        let filtered = filter_events_by_bar(&run.events, min_bar, min_bar);
+        assert!(!filtered.is_empty());
+        assert!(filtered.iter().all(|e| e.musical_time.bar == min_bar));
+
+        // Filtering beyond range returns empty
+        let empty = filter_events_by_bar(&run.events, max_bar + 100, max_bar + 200);
+        assert!(empty.is_empty());
     }
 }

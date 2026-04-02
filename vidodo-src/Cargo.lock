@@ -771,6 +771,13 @@ dependencies = [
 [[package]]
 name = "visual-runtime"
 version = "0.1.0"
+dependencies = [
+ "serde",
+ "serde_json",
+ "vidodo-ir",
+ "vidodo-storage",
+ "vidodo-trace",
+]
 
 [[package]]
 name = "walkdir"

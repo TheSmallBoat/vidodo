@@ -98,6 +98,31 @@ expect_failure "revision publish without show-id" \
 expect_failure "revision archive for unknown revision" \
     cargo run -p avctl -- revision archive --show-id nonexistent --revision 999
 
+# --- Deferred rollback without required flags ---
+expect_failure "deferred-rollback without show-id" \
+    cargo run -p avctl -- patch deferred-rollback
+
+expect_failure "deferred-rollback without anomaly" \
+    cargo run -p avctl -- patch deferred-rollback --show-id "$show_id" --patch-id some-patch
+
+expect_failure "deferred-rollback for unknown patch" \
+    cargo run -p avctl -- patch deferred-rollback --show-id "$show_id" --patch-id nonexistent --anomaly "test"
+
+# --- trace events with invalid bar range (should still succeed if run exists) ---
+# First do a full pipeline to have a run
+expect_success "setup: submit patch and run" \
+    cargo run -p avctl -- patch submit --show-id "$show_id" \
+        --patch-file "$repo_root/tests/fixtures/patches/minimal-local-content-patch.json"
+expect_success "setup: run patched revision" \
+    cargo run -p avctl -- run start --show-id "$show_id" --revision 2
+
+expect_success "trace events with --from-bar --to-bar returns filtered" \
+    cargo run -p avctl -- trace events --run-id run-show-phase0-minimal-rev-2 --from-bar 999 --to-bar 1000
+
+# --- Visual runtime with unknown run ---
+expect_failure "visual-runtime with unknown run" \
+    cargo run -p visual-runtime -- --run-id nonexistent-run
+
 echo ""
 echo "Results: $pass passed, $fail failed"
 if [ "$fail" -gt 0 ]; then

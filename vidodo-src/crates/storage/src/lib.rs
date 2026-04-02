@@ -12,12 +12,17 @@ use serde::de::DeserializeOwned;
 use sha2::{Digest, Sha256};
 use vidodo_ir::{
     AnalysisCacheEntry, AnalysisJob, AssetIngestReport, AssetRecord, AudioProbeSummary,
-    BeatTrackAnalysis, Diagnostic, IngestionCandidate, IngestionRun,
+    BeatTrackAnalysis, Diagnostic, IngestionCandidate, IngestionRun, SectionBoundary,
+    SectionSegmentationAnalysis,
 };
 
 const BEAT_TRACK_ANALYZER: &str = "beat_track";
 const BEAT_TRACK_ANALYZER_VERSION: &str = "0.1.0";
 const BEAT_TRACK_PARAMS: &str = "probe=v1;window_ms=10;min_gap_ms=160;supported=wav/pcm_s16le";
+
+const SECTION_SEG_ANALYZER: &str = "section_segmentation";
+const SECTION_SEG_ANALYZER_VERSION: &str = "0.1.0";
+const SECTION_SEG_PARAMS: &str = "probe=v1;energy_window_ms=500;min_section_bars=4";
 const ASSET_PACK_MANIFEST_FILE: &str = "vidodo-asset-pack.json";
 
 #[derive(Debug, Clone, Default, PartialEq, Eq, Deserialize)]
@@ -413,6 +418,57 @@ pub fn ingest_assets(
         write_json(&layout.analysis_job_path(&job.analysis_job_id), &job)
             .map_err(diagnostic_from_string)?;
 
+        // --- section_segmentation analysis ---
+        let seg_payload = build_section_segmentation(
+            &staged.asset_id,
+            &normalized_path,
+            staged.bytes.len() as u64,
+        )
+        .map_err(|message| vec![Diagnostic::error("AST-008", message)])?;
+        let seg_params_hash = hash_string(SECTION_SEG_PARAMS);
+        let seg_cache_key = build_cache_key_for(
+            &staged.asset_id,
+            &staged.content_hash,
+            &request.declared_kind,
+            &seg_payload.probe,
+            &seg_params_hash,
+            SECTION_SEG_ANALYZER,
+            SECTION_SEG_ANALYZER_VERSION,
+        );
+        let seg_result_ref = format!("analysis-seg-{}", short_hash(&seg_cache_key));
+        let seg_payload_path = layout.analysis_payload_path(&seg_result_ref);
+        write_json(&seg_payload_path, &seg_payload).map_err(diagnostic_from_string)?;
+
+        let seg_entry = AnalysisCacheEntry {
+            cache_key: seg_cache_key.clone(),
+            asset_id: staged.asset_id.clone(),
+            analyzer: String::from(SECTION_SEG_ANALYZER),
+            analyzer_version: String::from(SECTION_SEG_ANALYZER_VERSION),
+            input_fingerprint: staged.content_hash.clone(),
+            dependency_fingerprint: probe_fingerprint(&seg_payload.probe),
+            created_at: unix_timestamp(),
+            status: String::from("ready"),
+            payload_ref: artifact_ref(layout, &seg_payload_path),
+        };
+        write_json(&layout.analysis_entry_path(&seg_cache_key), &seg_entry)
+            .map_err(diagnostic_from_string)?;
+
+        let seg_job = AnalysisJob {
+            analysis_job_id: format!(
+                "job-{}",
+                short_hash(&format!("{}:{seg_cache_key}", staged.asset_id))
+            ),
+            asset_id: staged.asset_id.clone(),
+            analyzer: String::from(SECTION_SEG_ANALYZER),
+            analyzer_version: String::from(SECTION_SEG_ANALYZER_VERSION),
+            params_hash: seg_params_hash,
+            status: String::from("completed"),
+            cache_key: seg_cache_key.clone(),
+            result_ref: seg_result_ref.clone(),
+        };
+        write_json(&layout.analysis_job_path(&seg_job.analysis_job_id), &seg_job)
+            .map_err(diagnostic_from_string)?;
+
         let record = AssetRecord {
             asset_id: staged.asset_id.clone(),
             asset_kind: request.declared_kind.clone(),
@@ -420,7 +476,7 @@ pub fn ingest_assets(
             raw_locator: Some(artifact_ref(layout, &raw_path)),
             normalized_locator: Some(artifact_ref(layout, &normalized_path)),
             status: String::from("published"),
-            analysis_refs: vec![result_ref],
+            analysis_refs: vec![result_ref, seg_result_ref],
             derived_refs: Vec::new(),
             tags: merge_tags(&request.tags, &[String::from("ingested")]),
             warm_status: Some(String::from("cold")),
@@ -431,7 +487,9 @@ pub fn ingest_assets(
         store_asset_record(&mut records, record.clone());
         published.push(record.clone());
         analysis_jobs.push(job);
+        analysis_jobs.push(seg_job);
         analysis_entries.push(entry);
+        analysis_entries.push(seg_entry);
         record_by_identity.insert(identity_key, record);
     }
 
@@ -446,7 +504,7 @@ pub fn ingest_assets(
         started_at,
         completed_at: unix_timestamp(),
         discovered: candidates.len() as u32,
-        published: analysis_entries.len() as u32,
+        published: published.len() as u32,
         reused,
         failed: 0,
     };
@@ -1271,6 +1329,59 @@ fn build_beat_track_analysis(
     })
 }
 
+fn build_section_segmentation(
+    asset_id: &str,
+    normalized_path: &Path,
+    source_size_bytes: u64,
+) -> Result<SectionSegmentationAnalysis, String> {
+    let probed = probe_audio_file(normalized_path)?;
+    let (estimated_tempo_bpm, _transient_count) =
+        estimate_tempo_bpm(&probed.mono_samples, probed.summary.sample_rate_hz);
+    let estimated_bars = estimate_bars(probed.summary.duration_ms, estimated_tempo_bpm);
+
+    // Produce deterministic section boundaries from the estimated structure.
+    // Real implementation would use energy/spectral analysis; this heuristic
+    // divides the audio into 3-4 plausible sections for the offline pipeline.
+    let sections = build_section_boundaries(estimated_bars);
+
+    Ok(SectionSegmentationAnalysis {
+        asset_id: asset_id.to_string(),
+        analyzer: String::from(SECTION_SEG_ANALYZER),
+        analyzer_version: String::from(SECTION_SEG_ANALYZER_VERSION),
+        probe: probed.summary,
+        sections,
+        source_size_bytes,
+    })
+}
+
+fn build_section_boundaries(total_bars: u32) -> Vec<SectionBoundary> {
+    if total_bars == 0 {
+        return Vec::new();
+    }
+    let labels = ["intro", "build", "drop", "outro"];
+    let section_count = if total_bars < 8 {
+        1
+    } else if total_bars < 16 {
+        2
+    } else {
+        4
+    };
+    let bars_per_section = total_bars / section_count as u32;
+    let mut boundaries = Vec::with_capacity(section_count);
+    for (i, label) in labels.iter().take(section_count).enumerate() {
+        let start_bar = (i as u32) * bars_per_section + 1;
+        let end_bar =
+            if i == section_count - 1 { total_bars } else { start_bar + bars_per_section - 1 };
+        boundaries.push(SectionBoundary {
+            start_bar,
+            end_bar,
+            label: label.to_string(),
+            confidence: 80 - (i as u32 * 5),
+        });
+    }
+    boundaries
+}
+
 fn build_cache_key(
     asset_id: &str,
     content_hash: &str,
@@ -1278,10 +1389,30 @@ fn build_cache_key(
     probe: &AudioProbeSummary,
     params_hash: &str,
 ) -> String {
+    build_cache_key_for(
+        asset_id,
+        content_hash,
+        declared_kind,
+        probe,
+        params_hash,
+        BEAT_TRACK_ANALYZER,
+        BEAT_TRACK_ANALYZER_VERSION,
+    )
+}
+
+fn build_cache_key_for(
+    asset_id: &str,
+    content_hash: &str,
+    declared_kind: &str,
+    probe: &AudioProbeSummary,
+    params_hash: &str,
+    analyzer: &str,
+    analyzer_version: &str,
+) -> String {
     format!(
         "acache:{}",
         hash_string(&format!(
-            "{asset_id}:{content_hash}:{declared_kind}:{}:{params_hash}:{BEAT_TRACK_ANALYZER}:{BEAT_TRACK_ANALYZER_VERSION}",
+            "{asset_id}:{content_hash}:{declared_kind}:{}:{params_hash}:{analyzer}:{analyzer_version}",
             probe_fingerprint(probe)
         ))
     )
@@ -1612,7 +1743,7 @@ mod tests {
     use std::fs;
     use std::path::{Path, PathBuf};
     use std::time::{SystemTime, UNIX_EPOCH};
-    use vidodo_ir::{AssetRecord, BeatTrackAnalysis};
+    use vidodo_ir::{AssetRecord, BeatTrackAnalysis, SectionSegmentationAnalysis};
 
     fn unique_temp_dir(name: &str) -> PathBuf {
         let root = std::env::temp_dir().join(format!(
@@ -1704,7 +1835,7 @@ mod tests {
         let report = ingest_assets(&layout, &request).unwrap();
         assert_eq!(report.run.discovered, 2);
         assert_eq!(report.run.published, 2);
-        assert_eq!(report.analysis_entries.len(), 2);
+        assert_eq!(report.analysis_entries.len(), 4); // 2 assets × 2 analyzers
 
         let listed = list_assets(&layout, &AssetQuery::default()).unwrap();
         assert_eq!(listed.len(), 2);
@@ -1724,8 +1855,9 @@ mod tests {
         assert_eq!(asset.readiness.as_deref(), Some("compile_ready"));
 
         let analysis = list_asset_analysis(&layout, &asset.asset_id).unwrap();
-        assert_eq!(analysis.len(), 1);
-        let payload_path = root.join(&analysis[0].payload_ref);
+        assert_eq!(analysis.len(), 2); // beat_track + section_segmentation
+        let beat_track = analysis.iter().find(|e| e.analyzer == "beat_track").unwrap();
+        let payload_path = root.join(&beat_track.payload_ref);
         let payload: BeatTrackAnalysis = read_json(&payload_path).unwrap();
         assert_eq!(payload.asset_id, "audio.loop.kick-a");
         assert_eq!(payload.probe.codec, "pcm_s16le");
@@ -1736,7 +1868,15 @@ mod tests {
         assert!(payload.transient_count >= 3);
 
         let jobs = list_asset_jobs(&layout, &asset.asset_id).unwrap();
-        assert_eq!(jobs.len(), 1);
+        assert_eq!(jobs.len(), 2); // beat_track + section_segmentation
+
+        // Verify section segmentation results are queryable
+        let seg = analysis.iter().find(|e| e.analyzer == "section_segmentation").unwrap();
+        let seg_path = root.join(&seg.payload_ref);
+        let seg_payload: SectionSegmentationAnalysis = read_json(&seg_path).unwrap();
+        assert_eq!(seg_payload.asset_id, "audio.loop.kick-a");
+        assert!(!seg_payload.sections.is_empty());
+        assert!(seg_payload.sections[0].start_bar >= 1);
 
         let stable_ids = listed.iter().map(|record| record.asset_id.as_str()).collect::<Vec<_>>();
         assert_eq!(stable_ids, vec!["audio.loop.kick-a", "audio.loop.pad-a"]);
@@ -2003,7 +2143,7 @@ mod tests {
         let published_ids =
             report.assets.iter().map(|record| record.asset_id.as_str()).collect::<Vec<_>>();
         assert_eq!(published_ids, vec!["audio.loop.bundle-a.kick", "audio.loop.bundle-b.kick"]);
-        assert_eq!(report.analysis_entries.len(), 2);
+        assert_eq!(report.analysis_entries.len(), 4); // 2 assets × 2 analyzers
 
         fs::remove_dir_all(root).unwrap();
     }
