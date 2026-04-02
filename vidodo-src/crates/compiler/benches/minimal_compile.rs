@@ -40,6 +40,8 @@ fn load_fixture_plan() -> PlanBundle {
         visual_dsl,
         constraint_set,
         asset_records,
+        lighting_topology: None,
+        cue_sets: Vec::new(),
     }
 }
 

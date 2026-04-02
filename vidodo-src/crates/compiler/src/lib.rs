@@ -41,6 +41,8 @@ pub fn compile_plan(plan: &PlanBundle) -> Result<CompiledRevision, Vec<Diagnosti
         visual_ir,
         timeline,
         patch_history: Vec::new(),
+        lighting_topology: plan.lighting_topology.clone(),
+        cue_sets: plan.cue_sets.clone(),
     })
 }
 

@@ -16,9 +16,11 @@ pub fn check_patch(revision: &CompiledRevision, proposal: &LivePatchProposal) ->
         ));
     }
 
-    if proposal.patch_class != "local_content" {
-        diagnostics
-            .push(Diagnostic::error("PAT-002", "Phase 0 only supports local_content patches"));
+    if proposal.patch_class != "local_content" && proposal.patch_class != "lighting_cue" {
+        diagnostics.push(Diagnostic::error(
+            "PAT-002",
+            "unsupported patch_class; expected local_content or lighting_cue",
+        ));
     }
 
     if !revision
@@ -46,59 +48,76 @@ pub fn check_patch(revision: &CompiledRevision, proposal: &LivePatchProposal) ->
     }
 
     for change in &proposal.changes {
-        if change.op != "replace_asset" {
-            diagnostics.push(Diagnostic::error(
-                "PAT-005",
-                format!("unsupported patch operation {}", change.op),
-            ));
-        }
-
-        let layer_exists =
-            revision.audio_dsl.layers.iter().any(|layer| layer.layer_id == change.target);
-        if !layer_exists {
-            diagnostics.push(Diagnostic::error(
-                "PAT-006",
-                format!("patch target {} does not match any audio layer", change.target),
-            ));
-        }
-
-        let replacement_asset =
-            revision.asset_records.iter().find(|asset| asset.asset_id == change.to);
-        if replacement_asset.is_none() {
-            diagnostics.push(Diagnostic::error(
-                "PAT-007",
-                format!(
-                    "replacement asset {} does not exist in the active asset registry",
-                    change.to
-                ),
-            ));
-        } else if let Some(asset) = replacement_asset {
-            let ready =
-                matches!(asset.readiness.as_deref(), Some("live_candidate") | Some("warmed"));
-            let warm = matches!(asset.warm_status.as_deref(), Some("warmed"));
-            if !(ready && warm) {
+        if proposal.patch_class == "lighting_cue" {
+            // --- Lighting-specific checks ---
+            let fixture_exists = revision.lighting_topology.as_ref().is_some_and(|topo| {
+                topo.fixture_endpoints.iter().any(|fx| fx.fixture_id == change.target)
+            });
+            if !fixture_exists {
                 diagnostics.push(Diagnostic::error(
-                    "PAT-008",
-                    format!("replacement asset {} is not warmed and live-ready", change.to),
+                    "PAT-012",
+                    format!(
+                        "lighting fixture {} is not present in the active lighting topology",
+                        change.target
+                    ),
                 ));
             }
-        }
+        } else {
+            // --- Audio-specific checks (local_content) ---
+            if change.op != "replace_asset" {
+                diagnostics.push(Diagnostic::error(
+                    "PAT-005",
+                    format!("unsupported patch operation {}", change.op),
+                ));
+            }
 
-        let matching_action_exists =
-            revision.performance_ir.performance_actions.iter().any(|action| {
-                action.layer_id == change.target
-                    && action.target_asset_id.as_deref() == Some(change.from.as_str())
-                    && action.musical_time.bar >= proposal.scope.from_bar
-                    && action.musical_time.bar <= proposal.scope.to_bar
-            });
-        if !matching_action_exists {
-            diagnostics.push(Diagnostic::error(
-                "PAT-009",
-                format!(
-                    "patch change {} -> {} does not match any performance action inside the requested scope",
-                    change.from, change.to
-                ),
-            ));
+            let layer_exists =
+                revision.audio_dsl.layers.iter().any(|layer| layer.layer_id == change.target);
+            if !layer_exists {
+                diagnostics.push(Diagnostic::error(
+                    "PAT-006",
+                    format!("patch target {} does not match any audio layer", change.target),
+                ));
+            }
+
+            let replacement_asset =
+                revision.asset_records.iter().find(|asset| asset.asset_id == change.to);
+            if replacement_asset.is_none() {
+                diagnostics.push(Diagnostic::error(
+                    "PAT-007",
+                    format!(
+                        "replacement asset {} does not exist in the active asset registry",
+                        change.to
+                    ),
+                ));
+            } else if let Some(asset) = replacement_asset {
+                let ready =
+                    matches!(asset.readiness.as_deref(), Some("live_candidate") | Some("warmed"));
+                let warm = matches!(asset.warm_status.as_deref(), Some("warmed"));
+                if !(ready && warm) {
+                    diagnostics.push(Diagnostic::error(
+                        "PAT-008",
+                        format!("replacement asset {} is not warmed and live-ready", change.to),
+                    ));
+                }
+            }
+
+            let matching_action_exists =
+                revision.performance_ir.performance_actions.iter().any(|action| {
+                    action.layer_id == change.target
+                        && action.target_asset_id.as_deref() == Some(change.from.as_str())
+                        && action.musical_time.bar >= proposal.scope.from_bar
+                        && action.musical_time.bar <= proposal.scope.to_bar
+                });
+            if !matching_action_exists {
+                diagnostics.push(Diagnostic::error(
+                    "PAT-009",
+                    format!(
+                        "patch change {} -> {} does not match any performance action inside the requested scope",
+                        change.from, change.to
+                    ),
+                ));
+            }
         }
     }
 
@@ -383,5 +402,54 @@ mod tests {
         let result = deferred_rollback(&compiled, "no-such-patch", "anomaly");
         assert!(result.is_err());
         assert_eq!(result.unwrap_err().code, "PAT-010");
+    }
+
+    // --- WSJ-03: Lighting patch check path ---
+
+    fn lighting_proposal(
+        patch_id: &str,
+        base_revision: u64,
+        fixture_target: &str,
+    ) -> LivePatchProposal {
+        LivePatchProposal {
+            patch_id: String::from(patch_id),
+            submitted_by: Some(String::from("tests")),
+            patch_class: String::from("lighting_cue"),
+            base_revision,
+            scope: PatchScope {
+                from_bar: 1,
+                to_bar: 8,
+                window: String::from("next_phrase_boundary"),
+            },
+            intent: std::collections::BTreeMap::new(),
+            changes: vec![PatchChange {
+                op: String::from("swap_cue"),
+                target: String::from(fixture_target),
+                from: String::from("cue-intro-wash"),
+                to: String::from("cue-drop-wash"),
+            }],
+            fallback_revision: 1,
+        }
+    }
+
+    #[test]
+    fn accepts_lighting_patch_with_valid_fixture() {
+        let compiled =
+            compile_plan(&PlanBundle::minimal("show-phase0")).expect("plan should compile");
+        let proposal = lighting_proposal("patch-lighting-ok", 1, "fx-front-wash");
+        let diagnostics = check_patch(&compiled, &proposal);
+        assert!(diagnostics.is_empty(), "valid lighting patch should pass: {diagnostics:?}");
+    }
+
+    #[test]
+    fn rejects_lighting_patch_missing_fixture() {
+        let compiled =
+            compile_plan(&PlanBundle::minimal("show-phase0")).expect("plan should compile");
+        let proposal = lighting_proposal("patch-lighting-missing", 1, "fx-nonexistent");
+        let diagnostics = check_patch(&compiled, &proposal);
+        assert!(
+            diagnostics.iter().any(|d| d.code == "PAT-012"),
+            "missing fixture should produce PAT-012: {diagnostics:?}"
+        );
     }
 }

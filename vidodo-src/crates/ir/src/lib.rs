@@ -397,6 +397,10 @@ pub struct PlanBundle {
     pub visual_dsl: VisualDsl,
     pub constraint_set: ConstraintSet,
     pub asset_records: Vec<AssetRecord>,
+    #[serde(default)]
+    pub lighting_topology: Option<LightingTopology>,
+    #[serde(default)]
+    pub cue_sets: Vec<CueSet>,
 }
 
 impl PlanBundle {
@@ -572,6 +576,54 @@ impl PlanBundle {
             },
         ];
 
+        let lighting_topology = Some(LightingTopology {
+            topology_id: String::from("topo-phase0-minimal"),
+            backend: String::from("fake_lighting_backend"),
+            calibration_profile: None,
+            fixture_endpoints: vec![
+                LightingFixture {
+                    fixture_id: String::from("fx-front-wash"),
+                    role: String::from("wash"),
+                    device_ref: String::from("node-a"),
+                    universe: Some(1),
+                    address: Some(1),
+                    position: Some([0.0, 3.0, 0.0]),
+                    orientation: None,
+                    capabilities: vec![String::from("dimmer"), String::from("rgb")],
+                    status: Some(String::from("available")),
+                },
+                LightingFixture {
+                    fixture_id: String::from("fx-back-spot"),
+                    role: String::from("spot"),
+                    device_ref: String::from("node-b"),
+                    universe: Some(1),
+                    address: Some(10),
+                    position: Some([0.0, 4.0, -2.0]),
+                    orientation: None,
+                    capabilities: vec![
+                        String::from("dimmer"),
+                        String::from("rgb"),
+                        String::from("gobo"),
+                    ],
+                    status: Some(String::from("available")),
+                },
+            ],
+        });
+
+        let cue_sets = vec![CueSet {
+            cue_set_id: String::from("cue-phase0-main"),
+            topology_ref: String::from("topo-phase0-minimal"),
+            entries: vec![LightingCue {
+                source_ref: String::from("intro"),
+                fixture_group: vec![String::from("fx-front-wash")],
+                intensity: Some(0.8),
+                color: Some([0.2, 0.4, 1.0]),
+                fade_beats: Some(4.0),
+                motion_preset: None,
+                policy: Some(String::from("crossfade")),
+            }],
+        }];
+
         Self {
             show_id,
             base_revision: 0,
@@ -580,6 +632,8 @@ impl PlanBundle {
             visual_dsl,
             constraint_set,
             asset_records,
+            lighting_topology,
+            cue_sets,
         }
     }
 
@@ -1038,6 +1092,10 @@ pub struct CompiledRevision {
     pub timeline: Vec<TimelineEntry>,
     #[serde(default)]
     pub patch_history: Vec<PatchDecision>,
+    #[serde(default)]
+    pub lighting_topology: Option<LightingTopology>,
+    #[serde(default)]
+    pub cue_sets: Vec<CueSet>,
 }
 
 impl CompiledRevision {

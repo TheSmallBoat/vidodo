@@ -1020,6 +1020,8 @@ fn load_plan_bundle(plan_dir: &Path, assets_file: &Path) -> Result<PlanBundle, S
         visual_dsl,
         constraint_set,
         asset_records,
+        lighting_topology: None,
+        cue_sets: Vec::new(),
     })
 }
 
