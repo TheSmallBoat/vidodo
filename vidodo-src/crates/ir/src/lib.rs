@@ -891,6 +891,12 @@ pub struct TraceManifest {
     pub metrics_ref: Option<String>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub evaluation_ref: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub patch_decisions_ref: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub resource_samples_ref: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub export_ref: Option<String>,
 }
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
@@ -944,6 +950,33 @@ pub struct ShowState {
     #[serde(default)]
     pub active_audio_layers: Vec<String>,
     pub active_visual_scene: String,
+}
+
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+pub struct ResourceSample {
+    pub sample_time_ms: u64,
+    pub show_id: String,
+    pub revision: u64,
+    pub bar: u32,
+    pub section: String,
+    pub cpu: f64,
+    pub gpu: f64,
+    pub memory_mb: u32,
+    pub audio_xruns: u32,
+    pub video_dropped_frames: u32,
+    pub active_scene: String,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct ExportArtifactRecord {
+    pub artifact_id: String,
+    pub artifact_type: String,
+    pub locator: String,
+    pub content_hash: String,
+    pub derived_from_run_id: String,
+    pub revision: u64,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub duration_sec: Option<u32>,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]

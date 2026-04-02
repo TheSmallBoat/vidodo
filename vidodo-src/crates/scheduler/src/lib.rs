@@ -1,9 +1,12 @@
 use serde::{Deserialize, Serialize};
 use vidodo_ir::{
-    AudioEvent, BackendAck, CompiledRevision, EventRecord, MusicalTime, OutputBinding, PatchEvent,
-    RunSummary, RuntimePayload, ShowPatchState, ShowSemantic, ShowState, ShowTransition,
-    TimingEvent, VisualEvent,
+    AudioEvent, BackendAck, CompiledRevision, EventRecord, MusicalTime, OutputBinding,
+    PatchDecision, PatchEvent, ResourceSample, RunSummary, RuntimePayload, ShowPatchState,
+    ShowSemantic, ShowState, ShowTransition, TimingEvent, VisualEvent,
 };
+
+pub mod clock;
+pub mod lookahead;
 
 /// Trait for dispatching events to audio and visual backends.
 ///
@@ -47,6 +50,8 @@ pub struct ScheduledRun {
     pub events: Vec<EventRecord>,
     pub summary: RunSummary,
     pub final_show_state: ShowState,
+    pub patch_decisions: Vec<PatchDecision>,
+    pub resource_samples: Vec<ResourceSample>,
 }
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
@@ -86,6 +91,8 @@ pub fn simulate_run_with_backend(
     backend: &dyn BackendClient,
 ) -> ScheduledRun {
     let mut events = Vec::new();
+    let mut patch_decisions = Vec::new();
+    let mut resource_samples = Vec::new();
     let mut next_event = 1_u64;
     let mut scheduler_time_ms = 0_u64;
     let mut active_audio_layers = Vec::new();
@@ -277,6 +284,26 @@ pub fn simulate_run_with_backend(
             section.span.end_bar,
             &section.section_id,
         );
+
+        // Emit a resource sample at the end of each section
+        resource_samples.push(ResourceSample {
+            sample_time_ms: scheduler_time_ms,
+            show_id: compiled.show_id.clone(),
+            revision: compiled.revision,
+            bar: section.span.end_bar,
+            section: section.section_id.clone(),
+            cpu: 0.35 + (section.order as f64 * 0.05),
+            gpu: if active_visual_scene.contains("drop") { 0.55 } else { 0.25 },
+            memory_mb: 512 + (active_audio_layers.len() as u32 * 64),
+            audio_xruns: 0,
+            video_dropped_frames: 0,
+            active_scene: active_visual_scene.clone(),
+        });
+    }
+
+    // Collect patch decisions from the compiled revision's history
+    for decision in &compiled.patch_history {
+        patch_decisions.push(decision.clone());
     }
 
     let summary = RunSummary {
@@ -290,7 +317,7 @@ pub fn simulate_run_with_backend(
 
     let _ = run_id;
 
-    ScheduledRun { events, summary, final_show_state }
+    ScheduledRun { events, summary, final_show_state, patch_decisions, resource_samples }
 }
 
 fn default_show_state(
@@ -422,5 +449,49 @@ mod tests {
         assert!(backend.audio_count.get() > 0, "audio backend should be called");
         assert!(backend.visual_count.get() > 0, "visual backend should be called");
         assert!(!run.events.is_empty());
+    }
+
+    #[test]
+    fn produces_resource_samples_per_section() {
+        let compiled =
+            compile_plan(&PlanBundle::minimal("show-phase0")).expect("plan should compile");
+        let run = simulate_run(&compiled, "run-test-resource");
+
+        assert_eq!(
+            run.resource_samples.len(),
+            compiled.structure_ir.sections.len(),
+            "one resource sample per section"
+        );
+        for sample in &run.resource_samples {
+            assert_eq!(sample.show_id, "show-phase0");
+            assert_eq!(sample.audio_xruns, 0);
+            assert!(sample.cpu > 0.0);
+        }
+    }
+
+    #[test]
+    fn collects_patch_decisions_from_patched_revision() {
+        let compiled =
+            compile_plan(&PlanBundle::minimal("show-phase0")).expect("plan should compile");
+        let patch = serde_json::from_str::<vidodo_ir::LivePatchProposal>(
+            r#"{
+                "patch_id": "patch-phase0-pad-swap",
+                "submitted_by": "tests",
+                "patch_class": "local_content",
+                "base_revision": 1,
+                "scope": {"from_bar": 9, "to_bar": 16, "window": "next_phrase_boundary"},
+                "intent": {},
+                "changes": [{"op": "replace_asset", "target": "texture-bed", "from": "audio.loop.pad-a", "to": "audio.loop.pad-b"}],
+                "fallback_revision": 1
+            }"#,
+        )
+        .unwrap();
+
+        let patched = apply_patch(&compiled, &patch).expect("patch should apply");
+        let run = simulate_run(&patched, "run-test-patch-capture");
+
+        assert_eq!(run.patch_decisions.len(), 1);
+        assert_eq!(run.patch_decisions[0].patch_id, "patch-phase0-pad-swap");
+        assert_eq!(run.patch_decisions[0].decision, "applied");
     }
 }

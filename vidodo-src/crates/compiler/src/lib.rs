@@ -7,6 +7,8 @@ use vidodo_ir::{
 };
 use vidodo_validator::validate_plan;
 
+pub mod revision;
+
 pub fn compile_plan(plan: &PlanBundle) -> Result<CompiledRevision, Vec<Diagnostic>> {
     let diagnostics = validate_plan(plan)
         .into_iter()

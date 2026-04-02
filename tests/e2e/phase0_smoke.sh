@@ -22,10 +22,17 @@ cargo run -p avctl -- run status --show-id "$show_id" >/dev/null
 cargo run -p avctl -- trace show --run-id "$run_id" >/dev/null
 cargo run -p avctl -- trace events --run-id "$run_id" >/dev/null
 cargo run -p avctl -- eval run --show-id "$show_id" --run-id "$run_id" >/dev/null
+cargo run -p avctl -- export audio --run-id "$run_id" >/dev/null
+cargo run -p avctl -- revision list --show-id "$show_id" >/dev/null
 cargo run -p avctl -- patch rollback --show-id "$show_id" --patch-id patch-phase0-pad-swap >/dev/null
 
 test -f "$repo_root/artifacts/revisions/show-phase0-minimal/revision-2/patch-decision.json"
 test -f "$repo_root/artifacts/traces/run-show-phase0-minimal-rev-2/manifest.json"
 test -f "$repo_root/artifacts/traces/run-show-phase0-minimal-rev-2/events.jsonl"
 test -f "$repo_root/artifacts/traces/run-show-phase0-minimal-rev-2/evaluation.json"
+test -f "$repo_root/artifacts/traces/run-show-phase0-minimal-rev-2/patch-decisions.jsonl"
+test -f "$repo_root/artifacts/traces/run-show-phase0-minimal-rev-2/resource-samples.jsonl"
+test -f "$repo_root/artifacts/exports/run-show-phase0-minimal-rev-2/mix.wav"
+test -f "$repo_root/artifacts/exports/run-show-phase0-minimal-rev-2/export-record.json"
+test -f "$repo_root/artifacts/revisions/show-phase0-minimal/rollback-patch-phase0-pad-swap.json"
 test -f "$repo_root/artifacts/revisions/show-phase0-minimal/rollback-patch-phase0-pad-swap.json"

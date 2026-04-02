@@ -8,12 +8,14 @@ repository.workspace = true
 
 [dependencies]
 vidodo-ir = { path = "../ir" }
+vidodo-storage = { path = "../storage" }
 vidodo-validator = { path = "../validator" }
 
 [dev-dependencies]
 criterion.workspace = true
 serde.workspace = true
 serde_json.workspace = true
+tempfile.workspace = true
 
 [[bench]]
 name = "minimal_compile"

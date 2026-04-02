@@ -6,6 +6,9 @@ use std::process::ExitCode;
 
 use serde_json::{Value, json};
 use vidodo_compiler::compile_plan;
+use vidodo_compiler::revision::{
+    archive_revision, publish_revision, query_revisions, register_candidate,
+};
 use vidodo_evaluation::evaluate_run;
 use vidodo_ir::{
     AssetRecord, AudioDsl, CompiledRevision, ConstraintSet, Diagnostic, LivePatchProposal,
@@ -18,7 +21,7 @@ use vidodo_storage::{
     list_asset_analysis, list_asset_jobs, list_assets, list_compile_assets, read_json, slug,
     write_json,
 };
-use vidodo_trace::{load_events, load_manifest, manifest_path, write_trace};
+use vidodo_trace::{export_audio, load_events, load_manifest, manifest_path, write_trace};
 use vidodo_validator::validate_plan;
 
 fn main() -> ExitCode {
@@ -51,10 +54,12 @@ fn run() -> Result<(), ExitCode> {
         "asset" => handle_asset(&context, &args[1..]),
         "plan" => handle_plan(&context, &args[1..]),
         "compile" => handle_compile(&context, &args[1..]),
+        "revision" => handle_revision(&context, &args[1..]),
         "run" => handle_run(&context, &args[1..]),
         "patch" => handle_patch(&context, &args[1..]),
         "trace" => handle_trace(&context, &args[1..]),
         "eval" => handle_eval(&context, &args[1..]),
+        "export" => handle_export(&context, &args[1..]),
         _ => {
             print_usage();
             Err(ExitCode::from(2))
@@ -142,6 +147,8 @@ fn handle_doctor(context: &CommandContext) -> Result<(), ExitCode> {
         &simulated_run.summary,
         &simulated_run.final_show_state,
         &simulated_run.events,
+        &simulated_run.patch_decisions,
+        &simulated_run.resource_samples,
     )
     .map_err(|message| emit_error(capability, request_id, "CLI-005", message))?;
     let manifest_file = manifest_path(&context.layout, &run_id);
@@ -474,6 +481,73 @@ fn handle_compile(context: &CommandContext, args: &[String]) -> Result<(), ExitC
     }
 }
 
+fn handle_revision(context: &CommandContext, args: &[String]) -> Result<(), ExitCode> {
+    match args {
+        [command, rest @ ..] if command == "list" => {
+            let capability = "revision.list";
+            let request_id = "req-revision-list";
+            let show_id = required_flag(rest, "--show-id")
+                .map_err(|message| emit_error(capability, request_id, "CLI-080", message))?;
+            let records = query_revisions(&context.layout, &show_id)
+                .map_err(|message| emit_error(capability, request_id, "CLI-081", message))?;
+            print_response(
+                capability,
+                request_id,
+                "ok",
+                json!({
+                    "show_id": show_id,
+                    "count": records.len(),
+                    "revisions": records
+                }),
+                vec![],
+                vec![],
+                vec![],
+            )
+        }
+        [command, rest @ ..] if command == "publish" => {
+            let capability = "revision.publish";
+            let request_id = "req-revision-publish";
+            let show_id = required_flag(rest, "--show-id")
+                .map_err(|message| emit_error(capability, request_id, "CLI-082", message))?;
+            let revision = required_flag(rest, "--revision")
+                .and_then(|v| parse_u64(&v, "--revision"))
+                .map_err(|message| emit_error(capability, request_id, "CLI-083", message))?;
+            publish_revision(&context.layout, &show_id, revision)
+                .map_err(|message| emit_error(capability, request_id, "CLI-084", message))?;
+            print_response(
+                capability,
+                request_id,
+                "ok",
+                json!({ "show_id": show_id, "revision": revision, "status": "published" }),
+                vec![],
+                vec![],
+                vec![],
+            )
+        }
+        [command, rest @ ..] if command == "archive" => {
+            let capability = "revision.archive";
+            let request_id = "req-revision-archive";
+            let show_id = required_flag(rest, "--show-id")
+                .map_err(|message| emit_error(capability, request_id, "CLI-085", message))?;
+            let revision = required_flag(rest, "--revision")
+                .and_then(|v| parse_u64(&v, "--revision"))
+                .map_err(|message| emit_error(capability, request_id, "CLI-086", message))?;
+            archive_revision(&context.layout, &show_id, revision)
+                .map_err(|message| emit_error(capability, request_id, "CLI-087", message))?;
+            print_response(
+                capability,
+                request_id,
+                "ok",
+                json!({ "show_id": show_id, "revision": revision, "status": "archived" }),
+                vec![],
+                vec![],
+                vec![],
+            )
+        }
+        _ => Err(ExitCode::from(2)),
+    }
+}
+
 fn handle_run(context: &CommandContext, args: &[String]) -> Result<(), ExitCode> {
     match args {
         [command, rest @ ..] if command == "start" => {
@@ -496,6 +570,8 @@ fn handle_run(context: &CommandContext, args: &[String]) -> Result<(), ExitCode>
                 &scheduled.summary,
                 &scheduled.final_show_state,
                 &scheduled.events,
+                &scheduled.patch_decisions,
+                &scheduled.resource_samples,
             )
             .map_err(|message| emit_error(capability, request_id, "CLI-033", message))?;
             let trace_manifest =
@@ -728,6 +804,46 @@ fn handle_trace(context: &CommandContext, args: &[String]) -> Result<(), ExitCod
     }
 }
 
+fn handle_export(context: &CommandContext, args: &[String]) -> Result<(), ExitCode> {
+    match args {
+        [command, rest @ ..] if command == "audio" => {
+            let capability = "export.audio";
+            let request_id = "req-export-audio";
+            let run_id = required_flag(rest, "--run-id")
+                .map_err(|message| emit_error(capability, request_id, "CLI-070", message))?;
+            let manifest = load_manifest(&context.layout, &run_id)
+                .map_err(|message| emit_error(capability, request_id, "CLI-071", message))?;
+            let compiled = load_revision(context, &manifest.show_id, manifest.revision)
+                .map_err(|message| emit_error(capability, request_id, "CLI-072", message))?;
+            let record = export_audio(
+                &context.layout,
+                &run_id,
+                &manifest.show_id,
+                manifest.revision,
+                compiled.final_bar(),
+                128.0,
+            )
+            .map_err(|message| emit_error(capability, request_id, "CLI-073", message))?;
+            print_response(
+                capability,
+                request_id,
+                "ok",
+                json!({
+                    "artifact_id": record.artifact_id,
+                    "artifact_type": record.artifact_type,
+                    "locator": record.locator,
+                    "content_hash": record.content_hash,
+                    "duration_sec": record.duration_sec
+                }),
+                vec![],
+                vec![record.locator.clone()],
+                vec![String::from("export complete — WAV file linked to trace bundle")],
+            )
+        }
+        _ => Err(ExitCode::from(2)),
+    }
+}
+
 fn handle_eval(context: &CommandContext, args: &[String]) -> Result<(), ExitCode> {
     match args {
         [command, rest @ ..] if command == "run" => {
@@ -884,6 +1000,9 @@ fn persist_revision(
         write_json(&path, decision)?;
         artifacts.push(relative_to_repo(context, &path));
     }
+
+    // Register in SQLite revision catalog
+    let _ = register_candidate(&context.layout, revision);
 
     Ok(artifacts)
 }

@@ -584,6 +584,97 @@ pub fn slug(input: &str) -> String {
         .collect()
 }
 
+// --- Revision catalog (SQLite) ---
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct RevisionRecord {
+    pub show_id: String,
+    pub revision: u64,
+    pub status: String,
+    pub compile_run_id: String,
+    pub artifact_ref: String,
+    pub created_at: String,
+    pub updated_at: String,
+}
+
+pub fn insert_revision(layout: &ArtifactLayout, record: &RevisionRecord) -> Result<(), String> {
+    let connection = connect_registry(&layout.registry)?;
+    connection
+        .execute(
+            "INSERT INTO revisions (show_id, revision, status, compile_run_id, artifact_ref, created_at, updated_at)
+             VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7)",
+            params![
+                record.show_id,
+                record.revision,
+                record.status,
+                record.compile_run_id,
+                record.artifact_ref,
+                record.created_at,
+                record.updated_at,
+            ],
+        )
+        .map_err(|error| format!("insert revision failed: {error}"))?;
+    Ok(())
+}
+
+pub fn update_revision_status(
+    layout: &ArtifactLayout,
+    show_id: &str,
+    revision: u64,
+    new_status: &str,
+) -> Result<(), String> {
+    let connection = connect_registry(&layout.registry)?;
+    let now = timestamp_now();
+    let changed = connection
+        .execute(
+            "UPDATE revisions SET status = ?1, updated_at = ?2 WHERE show_id = ?3 AND revision = ?4",
+            params![new_status, now, show_id, revision],
+        )
+        .map_err(|error| format!("update revision status failed: {error}"))?;
+    if changed == 0 {
+        return Err(format!("revision {revision} not found for show {show_id}"));
+    }
+    Ok(())
+}
+
+pub fn list_revisions(
+    layout: &ArtifactLayout,
+    show_id: &str,
+) -> Result<Vec<RevisionRecord>, String> {
+    let connection = connect_registry(&layout.registry)?;
+    let mut statement = connection
+        .prepare(
+            "SELECT show_id, revision, status, compile_run_id, artifact_ref, created_at, updated_at
+             FROM revisions WHERE show_id = ?1 ORDER BY revision",
+        )
+        .map_err(|error| format!("prepare list_revisions failed: {error}"))?;
+    let rows = statement
+        .query_map(params![show_id], |row| {
+            Ok(RevisionRecord {
+                show_id: row.get(0)?,
+                revision: row.get(1)?,
+                status: row.get(2)?,
+                compile_run_id: row.get(3)?,
+                artifact_ref: row.get(4)?,
+                created_at: row.get(5)?,
+                updated_at: row.get(6)?,
+            })
+        })
+        .map_err(|error| format!("query list_revisions failed: {error}"))?;
+    let mut records = Vec::new();
+    for row in rows {
+        records.push(row.map_err(|error| format!("read revision row failed: {error}"))?);
+    }
+    Ok(records)
+}
+
+fn timestamp_now() -> String {
+    SystemTime::now()
+        .duration_since(UNIX_EPOCH)
+        .map(|duration| format!("{}", duration.as_secs()))
+        .unwrap_or_else(|_| String::from("0"))
+}
+
 fn connect_registry(path: &Path) -> Result<Connection, String> {
     if let Some(parent) = path.parent() {
         fs::create_dir_all(parent)
@@ -635,6 +726,17 @@ fn connect_registry(path: &Path) -> Result<Connection, String> {
               analyzer TEXT NOT NULL,
               status TEXT NOT NULL,
               payload_ref TEXT NOT NULL
+            );
+
+            CREATE TABLE IF NOT EXISTS revisions (
+              show_id TEXT NOT NULL,
+              revision INTEGER NOT NULL,
+              status TEXT NOT NULL DEFAULT 'candidate',
+              compile_run_id TEXT NOT NULL,
+              artifact_ref TEXT NOT NULL,
+              created_at TEXT NOT NULL,
+              updated_at TEXT NOT NULL,
+              PRIMARY KEY (show_id, revision)
             );
             ",
         )

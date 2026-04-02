@@ -84,6 +84,20 @@ expect_failure "eval run without prior run" \
 expect_failure "trace show for unknown run" \
     cargo run -p avctl -- trace show --run-id nonexistent-run
 
+# --- Export without prior run ---
+expect_failure "export audio for unknown run" \
+    cargo run -p avctl -- export audio --run-id nonexistent-run
+
+# --- Revision commands without flags ---
+expect_failure "revision list without show-id" \
+    cargo run -p avctl -- revision list
+
+expect_failure "revision publish without show-id" \
+    cargo run -p avctl -- revision publish
+
+expect_failure "revision archive for unknown revision" \
+    cargo run -p avctl -- revision archive --show-id nonexistent --revision 999
+
 echo ""
 echo "Results: $pass passed, $fail failed"
 if [ "$fail" -gt 0 ]; then
