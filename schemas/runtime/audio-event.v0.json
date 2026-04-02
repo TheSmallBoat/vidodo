@@ -21,11 +21,14 @@
         },
         "route_mode": {
             "type": "string",
+            "description": "Runtime output routing mode. Shared enum with IR route-set; runtime typically uses bus/discrete/group/object.",
             "enum": [
                 "bus",
                 "discrete",
                 "group",
-                "object"
+                "fanout",
+                "object",
+                "priority_failover"
             ]
         },
         "route_set_ref": {

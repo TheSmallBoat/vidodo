@@ -1,5 +1,5 @@
 use vidodo_ir::{
-    CompiledRevision, Diagnostic, LivePatchProposal, PatchDecision, TimelineEntry,
+    CompiledRevision, Diagnostic, LivePatchProposal, PatchDecision, PatchScope, TimelineEntry,
     TimelineScheduler,
 };
 
@@ -144,7 +144,11 @@ pub fn apply_patch(
         candidate_revision: patched.revision,
         decision: String::from("applied"),
         window: proposal.scope.window.clone(),
-        scope: format!("bars:{}-{}", proposal.scope.from_bar, proposal.scope.to_bar),
+        scope: PatchScope {
+            from_bar: proposal.scope.from_bar,
+            to_bar: proposal.scope.to_bar,
+            window: proposal.scope.window.clone(),
+        },
         fallback_revision: proposal.fallback_revision,
         reasons: vec![String::from("local content patch accepted")],
     };
@@ -206,19 +210,16 @@ pub fn rollback_patch(
 
 #[cfg(test)]
 mod tests {
-    use super::{apply_patch, check_patch};
+    use super::{apply_patch, check_patch, rollback_patch};
     use vidodo_compiler::compile_plan;
     use vidodo_ir::{LivePatchProposal, PatchChange, PatchScope, PlanBundle};
 
-    #[test]
-    fn applies_a_local_content_patch() {
-        let compiled =
-            compile_plan(&PlanBundle::minimal("show-phase0")).expect("plan should compile");
-        let proposal = LivePatchProposal {
-            patch_id: String::from("patch-phase0-pad-swap"),
+    fn minimal_proposal(patch_id: &str, base_revision: u64) -> LivePatchProposal {
+        LivePatchProposal {
+            patch_id: String::from(patch_id),
             submitted_by: Some(String::from("tests")),
             patch_class: String::from("local_content"),
-            base_revision: 1,
+            base_revision,
             scope: PatchScope {
                 from_bar: 9,
                 to_bar: 16,
@@ -232,7 +233,14 @@ mod tests {
                 to: String::from("audio.loop.pad-b"),
             }],
             fallback_revision: 1,
-        };
+        }
+    }
+
+    #[test]
+    fn applies_a_local_content_patch() {
+        let compiled =
+            compile_plan(&PlanBundle::minimal("show-phase0")).expect("plan should compile");
+        let proposal = minimal_proposal("patch-phase0-pad-swap", 1);
 
         assert!(check_patch(&compiled, &proposal).is_empty());
 
@@ -245,5 +253,72 @@ mod tests {
                 .iter()
                 .any(|action| action.target_asset_id.as_deref() == Some("audio.loop.pad-b"))
         );
+    }
+
+    #[test]
+    fn rejects_base_revision_mismatch() {
+        let compiled =
+            compile_plan(&PlanBundle::minimal("show-phase0")).expect("plan should compile");
+        let proposal = minimal_proposal("patch-wrong-rev", 999);
+        let diagnostics = check_patch(&compiled, &proposal);
+        assert!(diagnostics.iter().any(|d| d.code == "PAT-001"));
+    }
+
+    #[test]
+    fn rejects_non_local_content_patch_class() {
+        let compiled =
+            compile_plan(&PlanBundle::minimal("show-phase0")).expect("plan should compile");
+        let mut proposal = minimal_proposal("patch-structural", 1);
+        proposal.patch_class = String::from("structural");
+        let diagnostics = check_patch(&compiled, &proposal);
+        assert!(diagnostics.iter().any(|d| d.code == "PAT-002"));
+    }
+
+    #[test]
+    fn rejects_scope_outside_timeline() {
+        let compiled =
+            compile_plan(&PlanBundle::minimal("show-phase0")).expect("plan should compile");
+        let mut proposal = minimal_proposal("patch-out-of-range", 1);
+        proposal.scope =
+            PatchScope { from_bar: 200, to_bar: 300, window: String::from("next_phrase_boundary") };
+        let diagnostics = check_patch(&compiled, &proposal);
+        assert!(diagnostics.iter().any(|d| d.code == "PAT-004"));
+    }
+
+    #[test]
+    fn rejects_unknown_replacement_asset() {
+        let compiled =
+            compile_plan(&PlanBundle::minimal("show-phase0")).expect("plan should compile");
+        let mut proposal = minimal_proposal("patch-unknown-asset", 1);
+        proposal.changes = vec![PatchChange {
+            op: String::from("replace_asset"),
+            target: String::from("texture-bed"),
+            from: String::from("audio.loop.pad-a"),
+            to: String::from("audio.loop.nonexistent"),
+        }];
+        let diagnostics = check_patch(&compiled, &proposal);
+        assert!(diagnostics.iter().any(|d| d.code == "PAT-007"));
+    }
+
+    #[test]
+    fn rollback_fails_for_unknown_patch_id() {
+        let compiled =
+            compile_plan(&PlanBundle::minimal("show-phase0")).expect("plan should compile");
+        let result = rollback_patch(&compiled, "nonexistent-patch");
+        assert!(result.is_err());
+        let diagnostic = result.unwrap_err();
+        assert_eq!(diagnostic.code, "PAT-010");
+    }
+
+    #[test]
+    fn rollback_restores_fallback_revision() {
+        let compiled =
+            compile_plan(&PlanBundle::minimal("show-phase0")).expect("plan should compile");
+        let proposal = minimal_proposal("patch-phase0-pad-swap", 1);
+        let patched = apply_patch(&compiled, &proposal).expect("patch should apply");
+        let rollback =
+            rollback_patch(&patched, "patch-phase0-pad-swap").expect("rollback should succeed");
+        assert_eq!(rollback.decision, "rolled_back");
+        assert_eq!(rollback.fallback_revision, 1);
     }
 }

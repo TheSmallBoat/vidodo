@@ -60,6 +60,7 @@
         },
         "status": {
             "type": "string",
+            "description": "Plugin operational readiness state. 'ready' means the plugin has initialised and can handle commands. Contrast with 'available' used for reachable resource endpoints.",
             "enum": [
                 "ready",
                 "degraded",

@@ -5,6 +5,43 @@ use vidodo_ir::{
     TimingEvent, VisualEvent,
 };
 
+/// Trait for dispatching events to audio and visual backends.
+///
+/// Implementors produce a [`BackendAck`] for each dispatched event.
+/// The scheduler calls into this trait during a run so that fake, stub,
+/// and future real backends share the same interface.
+pub trait BackendClient {
+    fn dispatch_audio(&self, event: &AudioEvent) -> BackendAck;
+    fn dispatch_visual(&self, event: &VisualEvent) -> BackendAck;
+}
+
+/// Deterministic fake backend that always returns `ok` acks.
+pub struct FakeBackendClient;
+
+impl BackendClient for FakeBackendClient {
+    fn dispatch_audio(&self, event: &AudioEvent) -> BackendAck {
+        BackendAck {
+            backend: String::from("fake_audio_backend"),
+            target: event.layer_id.clone(),
+            status: String::from("ok"),
+            detail: format!(
+                "{} {}",
+                event.op,
+                event.target_asset_id.clone().unwrap_or_else(|| String::from("none"))
+            ),
+        }
+    }
+
+    fn dispatch_visual(&self, event: &VisualEvent) -> BackendAck {
+        BackendAck {
+            backend: String::from("fake_visual_backend"),
+            target: event.scene_id.clone(),
+            status: String::from("ok"),
+            detail: format!("render {}", event.shader_program),
+        }
+    }
+}
+
 #[derive(Debug, Clone, PartialEq)]
 pub struct ScheduledRun {
     pub events: Vec<EventRecord>,
@@ -40,6 +77,14 @@ pub fn prepare_run_summary(compiled: &CompiledRevision) -> RunSummary {
 }
 
 pub fn simulate_run(compiled: &CompiledRevision, run_id: &str) -> ScheduledRun {
+    simulate_run_with_backend(compiled, run_id, &FakeBackendClient)
+}
+
+pub fn simulate_run_with_backend(
+    compiled: &CompiledRevision,
+    run_id: &str,
+    backend: &dyn BackendClient,
+) -> ScheduledRun {
     let mut events = Vec::new();
     let mut next_event = 1_u64;
     let mut scheduler_time_ms = 0_u64;
@@ -127,7 +172,7 @@ pub fn simulate_run(compiled: &CompiledRevision, run_id: &str) -> ScheduledRun {
                             wallclock_time_ms: scheduler_time_ms,
                             causation_id: entry.id.clone(),
                             payload: RuntimePayload::Audio(payload.clone()),
-                            ack: Some(fake_audio_ack(&payload)),
+                            ack: Some(backend.dispatch_audio(&payload)),
                         });
                         next_event += 1;
                         scheduler_time_ms += 1_000;
@@ -173,7 +218,7 @@ pub fn simulate_run(compiled: &CompiledRevision, run_id: &str) -> ScheduledRun {
                             wallclock_time_ms: scheduler_time_ms,
                             causation_id: entry.id.clone(),
                             payload: RuntimePayload::Visual(payload.clone()),
-                            ack: Some(fake_visual_ack(&payload)),
+                            ack: Some(backend.dispatch_visual(&payload)),
                         });
                         next_event += 1;
                         scheduler_time_ms += 1_000;
@@ -187,7 +232,7 @@ pub fn simulate_run(compiled: &CompiledRevision, run_id: &str) -> ScheduledRun {
                     {
                         let payload = PatchEvent {
                             patch_id: decision.patch_id.clone(),
-                            scope: decision.window.clone(),
+                            scope: decision.scope.clone(),
                             effective_revision: decision.candidate_revision,
                             fallback_revision: decision.fallback_revision,
                             decision: Some(decision.decision.clone()),
@@ -319,33 +364,11 @@ fn default_show_state(
     }
 }
 
-fn fake_audio_ack(event: &AudioEvent) -> BackendAck {
-    BackendAck {
-        backend: String::from("fake_audio_backend"),
-        target: event.layer_id.clone(),
-        status: String::from("ok"),
-        detail: format!(
-            "{} {}",
-            event.op,
-            event.target_asset_id.clone().unwrap_or_else(|| String::from("none"))
-        ),
-    }
-}
-
-fn fake_visual_ack(event: &VisualEvent) -> BackendAck {
-    BackendAck {
-        backend: String::from("fake_visual_backend"),
-        target: event.scene_id.clone(),
-        status: String::from("ok"),
-        detail: format!("render {}", event.shader_program),
-    }
-}
-
 #[cfg(test)]
 mod tests {
-    use super::simulate_run;
+    use super::{BackendClient, FakeBackendClient, simulate_run, simulate_run_with_backend};
     use vidodo_compiler::compile_plan;
-    use vidodo_ir::PlanBundle;
+    use vidodo_ir::{AudioEvent, BackendAck, PlanBundle, VisualEvent};
     use vidodo_patch_manager::apply_patch;
 
     #[test]
@@ -370,5 +393,34 @@ mod tests {
         let run = simulate_run(&patched, "run-show-phase0-rev-2");
 
         assert!(run.events.iter().any(|event| event.kind == "patch.applied"));
+    }
+
+    #[test]
+    fn custom_backend_receives_dispatches() {
+        struct CountingBackend {
+            audio_count: std::cell::Cell<u32>,
+            visual_count: std::cell::Cell<u32>,
+        }
+        impl BackendClient for CountingBackend {
+            fn dispatch_audio(&self, event: &AudioEvent) -> BackendAck {
+                self.audio_count.set(self.audio_count.get() + 1);
+                FakeBackendClient.dispatch_audio(event)
+            }
+            fn dispatch_visual(&self, event: &VisualEvent) -> BackendAck {
+                self.visual_count.set(self.visual_count.get() + 1);
+                FakeBackendClient.dispatch_visual(event)
+            }
+        }
+        let backend = CountingBackend {
+            audio_count: std::cell::Cell::new(0),
+            visual_count: std::cell::Cell::new(0),
+        };
+        let compiled =
+            compile_plan(&PlanBundle::minimal("show-phase0")).expect("plan should compile");
+        let run = simulate_run_with_backend(&compiled, "run-test-backend", &backend);
+
+        assert!(backend.audio_count.get() > 0, "audio backend should be called");
+        assert!(backend.visual_count.get() > 0, "visual backend should be called");
+        assert!(!run.events.is_empty());
     }
 }

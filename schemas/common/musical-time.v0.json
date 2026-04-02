@@ -22,7 +22,8 @@
             "minimum": 0
         },
         "beat_in_bar": {
-            "type": "number"
+            "type": "number",
+            "minimum": 0
         },
         "phrase": {
             "type": "integer",

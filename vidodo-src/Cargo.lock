@@ -36,6 +36,7 @@ dependencies = [
  "serde",
  "serde_json",
  "vidodo-compiler",
+ "vidodo-evaluation",
  "vidodo-ir",
  "vidodo-patch-manager",
  "vidodo-scheduler",
@@ -551,6 +552,17 @@ dependencies = [
  "serde_json",
  "vidodo-ir",
  "vidodo-validator",
+]
+
+[[package]]
+name = "vidodo-evaluation"
+version = "0.1.0"
+dependencies = [
+ "serde",
+ "serde_json",
+ "vidodo-ir",
+ "vidodo-storage",
+ "vidodo-trace",
 ]
 
 [[package]]

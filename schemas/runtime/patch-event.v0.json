@@ -15,7 +15,27 @@
             "type": "string"
         },
         "scope": {
-            "type": "string"
+            "type": "object",
+            "description": "Structured patch scope matching live-patch-proposal scope for full traceability.",
+            "required": [
+                "from_bar",
+                "to_bar",
+                "window"
+            ],
+            "properties": {
+                "from_bar": {
+                    "type": "integer",
+                    "minimum": 0
+                },
+                "to_bar": {
+                    "type": "integer",
+                    "minimum": 0
+                },
+                "window": {
+                    "type": "string"
+                }
+            },
+            "additionalProperties": false
         },
         "effective_revision": {
             "type": "integer",

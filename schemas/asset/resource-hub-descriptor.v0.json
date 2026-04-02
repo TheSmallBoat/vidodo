@@ -66,6 +66,7 @@
         },
         "status": {
             "type": "string",
+            "description": "Hub reachability state. 'available' means the hub is contactable and serving resources. Contrast with 'ready' used for initialised adapter plugins.",
             "enum": [
                 "available",
                 "degraded",

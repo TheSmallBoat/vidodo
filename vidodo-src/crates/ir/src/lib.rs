@@ -685,7 +685,7 @@ pub struct TimelineEntry {
     pub guards: BTreeMap<String, String>,
 }
 
-#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct PatchScope {
     pub from_bar: u32,
     pub to_bar: u32,
@@ -721,7 +721,7 @@ pub struct PatchDecision {
     pub candidate_revision: u64,
     pub decision: String,
     pub window: String,
-    pub scope: String,
+    pub scope: PatchScope,
     pub fallback_revision: u64,
     #[serde(default)]
     pub reasons: Vec<String>,
@@ -829,7 +829,7 @@ pub struct VisualEvent {
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct PatchEvent {
     pub patch_id: String,
-    pub scope: String,
+    pub scope: PatchScope,
     pub effective_revision: u64,
     pub fallback_revision: u64,
     #[serde(skip_serializing_if = "Option::is_none")]

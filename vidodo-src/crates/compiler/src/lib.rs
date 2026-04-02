@@ -270,4 +270,40 @@ mod tests {
         assert!(!first.timeline.is_empty());
         assert_eq!(first.structure_ir.sections.len(), 2);
     }
+
+    #[test]
+    fn rejects_plan_with_validation_errors() {
+        let mut plan = PlanBundle::minimal("show-phase0");
+        plan.audio_dsl.layers[0].asset_candidates = vec![String::from("nonexistent-asset")];
+
+        let result = compile_plan(&plan);
+        assert!(result.is_err());
+        let diagnostics = result.unwrap_err();
+        assert!(diagnostics.iter().any(|d| d.code == "VAL-006"));
+    }
+
+    #[test]
+    fn rejects_empty_show_id() {
+        let plan = PlanBundle::minimal("");
+        let result = compile_plan(&plan);
+        assert!(result.is_err());
+        let diagnostics = result.unwrap_err();
+        assert!(diagnostics.iter().any(|d| d.code == "VAL-001"));
+    }
+
+    #[test]
+    fn timeline_is_sorted_by_bar_then_priority() {
+        let plan = PlanBundle::minimal("show-phase0");
+        let compiled = compile_plan(&plan).expect("should compile");
+        for window in compiled.timeline.windows(2) {
+            let a_bar = window[0].effective_window.from_bar;
+            let b_bar = window[1].effective_window.from_bar;
+            assert!(
+                a_bar <= b_bar,
+                "timeline entries should be sorted by from_bar: {} > {}",
+                a_bar,
+                b_bar
+            );
+        }
+    }
 }

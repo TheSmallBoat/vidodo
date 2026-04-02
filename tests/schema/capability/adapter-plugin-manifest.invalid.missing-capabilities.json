@@ -1,0 +1,6 @@
+{
+    "plugin_id": "plugin.audio.fake.v0",
+    "plugin_kind": "audio_output",
+    "backend_kind": "fake_audio_backend",
+    "version": "0.1"
+}

@@ -115,4 +115,60 @@ mod tests {
 
         assert!(diagnostics.iter().any(|diagnostic| diagnostic.code == "VAL-006"));
     }
+
+    #[test]
+    fn rejects_empty_show_id() {
+        let plan = PlanBundle::minimal("");
+        let diagnostics = validate_plan(&plan);
+        assert!(diagnostics.iter().any(|d| d.code == "VAL-001"));
+    }
+
+    #[test]
+    fn rejects_mismatched_show_ids() {
+        let mut plan = PlanBundle::minimal("show-a");
+        plan.audio_dsl.show_id = String::from("show-b");
+        let diagnostics = validate_plan(&plan);
+        assert!(diagnostics.iter().any(|d| d.code == "VAL-002"));
+    }
+
+    #[test]
+    fn rejects_empty_sections() {
+        let mut plan = PlanBundle::minimal("show-phase0");
+        plan.set_plan.sections.clear();
+        let diagnostics = validate_plan(&plan);
+        assert!(diagnostics.iter().any(|d| d.code == "VAL-003"));
+    }
+
+    #[test]
+    fn rejects_audio_layer_exceeding_max() {
+        let mut plan = PlanBundle::minimal("show-phase0");
+        plan.constraint_set.max_audio_layers = 0;
+        let diagnostics = validate_plan(&plan);
+        assert!(diagnostics.iter().any(|d| d.code == "VAL-004"));
+    }
+
+    #[test]
+    fn warns_on_empty_patch_scopes() {
+        let mut plan = PlanBundle::minimal("show-phase0");
+        plan.constraint_set.allowed_patch_scopes.clear();
+        let diagnostics = validate_plan(&plan);
+        assert!(diagnostics.iter().any(|d| d.code == "VAL-009" && d.severity == "warning"));
+    }
+
+    #[test]
+    fn rejects_audio_layer_referencing_unknown_section() {
+        let mut plan = PlanBundle::minimal("show-phase0");
+        plan.audio_dsl.layers[0].entry_rules.section_refs =
+            vec![String::from("nonexistent-section")];
+        let diagnostics = validate_plan(&plan);
+        assert!(diagnostics.iter().any(|d| d.code == "VAL-007"));
+    }
+
+    #[test]
+    fn accepts_valid_minimal_plan() {
+        let plan = PlanBundle::minimal("show-phase0");
+        let diagnostics = validate_plan(&plan);
+        let errors: Vec<_> = diagnostics.iter().filter(|d| d.severity == "error").collect();
+        assert!(errors.is_empty(), "expected no errors but got: {:?}", errors);
+    }
 }

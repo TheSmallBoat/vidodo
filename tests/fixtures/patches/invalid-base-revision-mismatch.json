@@ -1,0 +1,21 @@
+{
+    "patch_id": "patch-wrong-revision",
+    "submitted_by": "fixture",
+    "patch_class": "local_content",
+    "base_revision": 999,
+    "scope": {
+        "from_bar": 9,
+        "to_bar": 16,
+        "window": "next_phrase_boundary"
+    },
+    "intent": {},
+    "changes": [
+        {
+            "op": "replace_asset",
+            "target": "texture-bed",
+            "from": "audio.loop.pad-a",
+            "to": "audio.loop.pad-b"
+        }
+    ],
+    "fallback_revision": 1
+}

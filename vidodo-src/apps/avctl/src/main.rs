@@ -6,6 +6,7 @@ use std::process::ExitCode;
 
 use serde_json::{Value, json};
 use vidodo_compiler::compile_plan;
+use vidodo_evaluation::evaluate_run;
 use vidodo_ir::{
     AssetRecord, AudioDsl, CompiledRevision, ConstraintSet, Diagnostic, LivePatchProposal,
     PlanBundle, ResponseEnvelope, SetPlan, VisualDsl,
@@ -53,6 +54,7 @@ fn run() -> Result<(), ExitCode> {
         "run" => handle_run(&context, &args[1..]),
         "patch" => handle_patch(&context, &args[1..]),
         "trace" => handle_trace(&context, &args[1..]),
+        "eval" => handle_eval(&context, &args[1..]),
         _ => {
             print_usage();
             Err(ExitCode::from(2))
@@ -91,9 +93,9 @@ fn handle_doctor(context: &CommandContext) -> Result<(), ExitCode> {
     }
 
     let compiled = compile_plan(&plan).map_err(|diagnostics| {
-        print_response(capability, request_id, "error", json!({}), diagnostics, vec![], vec![])
-            .err()
-            .unwrap()
+        let _ =
+            print_response(capability, request_id, "error", json!({}), diagnostics, vec![], vec![]);
+        ExitCode::from(1)
     })?;
     let mut artifacts = persist_revision(context, &compiled)
         .map_err(|message| emit_error(capability, request_id, "CLI-002", message))?;
@@ -114,7 +116,7 @@ fn handle_doctor(context: &CommandContext) -> Result<(), ExitCode> {
     }
 
     let patched = apply_patch(&compiled, &patch).map_err(|diagnostics| {
-        print_response(
+        let _ = print_response(
             capability,
             request_id,
             "error",
@@ -122,9 +124,8 @@ fn handle_doctor(context: &CommandContext) -> Result<(), ExitCode> {
             diagnostics,
             artifacts.clone(),
             vec![],
-        )
-        .err()
-        .unwrap()
+        );
+        ExitCode::from(1)
     })?;
     artifacts.extend(
         persist_revision(context, &patched)
@@ -148,7 +149,7 @@ fn handle_doctor(context: &CommandContext) -> Result<(), ExitCode> {
     artifacts.push(trace_manifest_ref.clone());
 
     let rollback = rollback_patch(&patched, &patch.patch_id).map_err(|diagnostic| {
-        print_response(
+        let _ = print_response(
             capability,
             request_id,
             "error",
@@ -156,9 +157,8 @@ fn handle_doctor(context: &CommandContext) -> Result<(), ExitCode> {
             vec![*diagnostic],
             artifacts.clone(),
             vec![],
-        )
-        .err()
-        .unwrap()
+        );
+        ExitCode::from(1)
     })?;
     let rollback_path = context
         .layout
@@ -230,7 +230,7 @@ fn handle_asset(context: &CommandContext, args: &[String]) -> Result<(), ExitCod
                 },
             )
             .map_err(|diagnostics| {
-                print_response(
+                let _ = print_response(
                     capability,
                     request_id,
                     "error",
@@ -238,9 +238,8 @@ fn handle_asset(context: &CommandContext, args: &[String]) -> Result<(), ExitCod
                     diagnostics,
                     vec![],
                     vec![],
-                )
-                .err()
-                .unwrap()
+                );
+                ExitCode::from(1)
             })?;
 
             let report_path = context.layout.ingestion_report_path(&report.run.ingestion_run_id);
@@ -434,7 +433,7 @@ fn handle_compile(context: &CommandContext, args: &[String]) -> Result<(), ExitC
             let plan = load_plan_bundle(&resolve_path(context, &plan_dir), &asset_file)
                 .map_err(|message| emit_error(capability, request_id, "CLI-021", message))?;
             let compiled = compile_plan(&plan).map_err(|diagnostics| {
-                print_response(
+                let _ = print_response(
                     capability,
                     request_id,
                     "error",
@@ -442,9 +441,8 @@ fn handle_compile(context: &CommandContext, args: &[String]) -> Result<(), ExitC
                     diagnostics,
                     vec![],
                     vec![],
-                )
-                .err()
-                .unwrap()
+                );
+                ExitCode::from(1)
             })?;
             let mut artifacts = persist_revision(context, &compiled)
                 .map_err(|message| emit_error(capability, request_id, "CLI-022", message))?;
@@ -598,7 +596,7 @@ fn handle_patch(context: &CommandContext, args: &[String]) -> Result<(), ExitCod
             let patch = load_patch(&resolve_path(context, &patch_file))
                 .map_err(|message| emit_error(capability, request_id, "CLI-047", message))?;
             let patched = apply_patch(&revision, &patch).map_err(|diagnostics| {
-                print_response(
+                let _ = print_response(
                     capability,
                     request_id,
                     "error",
@@ -606,13 +604,19 @@ fn handle_patch(context: &CommandContext, args: &[String]) -> Result<(), ExitCod
                     diagnostics,
                     vec![],
                     vec![],
-                )
-                .err()
-                .unwrap()
+                );
+                ExitCode::from(1)
             })?;
             let artifacts = persist_revision(context, &patched)
                 .map_err(|message| emit_error(capability, request_id, "CLI-048", message))?;
-            let decision = patched.patch_history.last().cloned().unwrap();
+            let decision = patched.patch_history.last().cloned().ok_or_else(|| {
+                emit_error(
+                    capability,
+                    request_id,
+                    "CLI-049",
+                    String::from("patch was applied but no decision was recorded"),
+                )
+            })?;
             print_response(
                 capability,
                 request_id,
@@ -641,7 +645,7 @@ fn handle_patch(context: &CommandContext, args: &[String]) -> Result<(), ExitCod
             let revision = load_latest_revision(context, &show_id)
                 .map_err(|message| emit_error(capability, request_id, "CLI-051", message))?;
             let rollback = rollback_patch(&revision, &patch_id).map_err(|diagnostic| {
-                print_response(
+                let _ = print_response(
                     capability,
                     request_id,
                     "error",
@@ -649,9 +653,8 @@ fn handle_patch(context: &CommandContext, args: &[String]) -> Result<(), ExitCod
                     vec![*diagnostic],
                     vec![],
                     vec![],
-                )
-                .err()
-                .unwrap()
+                );
+                ExitCode::from(1)
             })?;
             let rollback_path = context
                 .layout
@@ -725,6 +728,62 @@ fn handle_trace(context: &CommandContext, args: &[String]) -> Result<(), ExitCod
     }
 }
 
+fn handle_eval(context: &CommandContext, args: &[String]) -> Result<(), ExitCode> {
+    match args {
+        [command, rest @ ..] if command == "run" => {
+            let capability = "eval.run";
+            let request_id = "req-eval-run";
+            let show_id = required_flag(rest, "--show-id")
+                .map_err(|message| emit_error(capability, request_id, "CLI-070", message))?;
+            let run_id = match optional_flag(rest, "--run-id") {
+                Some(id) => id,
+                None => {
+                    let status_record: RunStatusRecord = read_json(
+                        &context.layout.run_status_path(&show_id),
+                    )
+                    .map_err(|message| emit_error(capability, request_id, "CLI-071", message))?;
+                    if status_record.run_id.is_empty() {
+                        return Err(emit_error(
+                            capability,
+                            request_id,
+                            "CLI-071",
+                            String::from(
+                                "no run found; provide --run-id or run `avctl run start` first",
+                            ),
+                        ));
+                    }
+                    status_record.run_id
+                }
+            };
+            let status_record: RunStatusRecord =
+                read_json(&context.layout.run_status_path(&show_id))
+                    .map_err(|message| emit_error(capability, request_id, "CLI-072", message))?;
+            let report = evaluate_run(
+                &context.layout,
+                &run_id,
+                &status_record.summary,
+                &status_record.final_show_state,
+            )
+            .map_err(|message| emit_error(capability, request_id, "CLI-073", message))?;
+
+            let eval_path = context.layout.trace_dir(&run_id).join("evaluation.json");
+            write_json(&eval_path, &report)
+                .map_err(|message| emit_error(capability, request_id, "CLI-074", message))?;
+
+            print_response(
+                capability,
+                request_id,
+                "ok",
+                serde_json::to_value(&report).unwrap_or_else(|_| json!({})),
+                vec![],
+                vec![relative_to_repo(context, &eval_path)],
+                vec![],
+            )
+        }
+        _ => Err(ExitCode::from(2)),
+    }
+}
+
 fn load_plan_bundle(plan_dir: &Path, assets_file: &Path) -> Result<PlanBundle, String> {
     let set_plan: SetPlan = read_json(&plan_dir.join("set-plan.json"))?;
     let audio_dsl: AudioDsl = read_json(&plan_dir.join("audio-dsl.json"))?;
@@ -762,18 +821,59 @@ fn persist_revision(
         .map_err(|error| format!("failed to create {}: {error}", revision_dir.display()))?;
 
     let mut artifacts = Vec::new();
-    for (filename, value) in [
-        ("revision.json", serde_json::to_value(revision).unwrap()),
-        ("set-plan.json", serde_json::to_value(&revision.set_plan).unwrap()),
-        ("audio-dsl.json", serde_json::to_value(&revision.audio_dsl).unwrap()),
-        ("visual-dsl.json", serde_json::to_value(&revision.visual_dsl).unwrap()),
-        ("constraint-set.json", serde_json::to_value(&revision.constraint_set).unwrap()),
-        ("asset-records.json", serde_json::to_value(&revision.asset_records).unwrap()),
-        ("structure-ir.json", serde_json::to_value(&revision.structure_ir).unwrap()),
-        ("performance-ir.json", serde_json::to_value(&revision.performance_ir).unwrap()),
-        ("visual-ir.json", serde_json::to_value(&revision.visual_ir).unwrap()),
-        ("timeline.json", serde_json::to_value(&revision.timeline).unwrap()),
-    ] {
+    let revision_artifacts: Vec<(&str, Value)> = vec![
+        (
+            "revision.json",
+            serde_json::to_value(revision)
+                .map_err(|e| format!("failed to serialize revision: {e}"))?,
+        ),
+        (
+            "set-plan.json",
+            serde_json::to_value(&revision.set_plan)
+                .map_err(|e| format!("failed to serialize set-plan: {e}"))?,
+        ),
+        (
+            "audio-dsl.json",
+            serde_json::to_value(&revision.audio_dsl)
+                .map_err(|e| format!("failed to serialize audio-dsl: {e}"))?,
+        ),
+        (
+            "visual-dsl.json",
+            serde_json::to_value(&revision.visual_dsl)
+                .map_err(|e| format!("failed to serialize visual-dsl: {e}"))?,
+        ),
+        (
+            "constraint-set.json",
+            serde_json::to_value(&revision.constraint_set)
+                .map_err(|e| format!("failed to serialize constraint-set: {e}"))?,
+        ),
+        (
+            "asset-records.json",
+            serde_json::to_value(&revision.asset_records)
+                .map_err(|e| format!("failed to serialize asset-records: {e}"))?,
+        ),
+        (
+            "structure-ir.json",
+            serde_json::to_value(&revision.structure_ir)
+                .map_err(|e| format!("failed to serialize structure-ir: {e}"))?,
+        ),
+        (
+            "performance-ir.json",
+            serde_json::to_value(&revision.performance_ir)
+                .map_err(|e| format!("failed to serialize performance-ir: {e}"))?,
+        ),
+        (
+            "visual-ir.json",
+            serde_json::to_value(&revision.visual_ir)
+                .map_err(|e| format!("failed to serialize visual-ir: {e}"))?,
+        ),
+        (
+            "timeline.json",
+            serde_json::to_value(&revision.timeline)
+                .map_err(|e| format!("failed to serialize timeline: {e}"))?,
+        ),
+    ];
+    for (filename, value) in revision_artifacts {
         let path = revision_dir.join(filename);
         write_json(&path, &value)?;
         artifacts.push(relative_to_repo(context, &path));
@@ -908,6 +1008,7 @@ fn print_usage() {
     eprintln!("avctl patch rollback --show-id <show-id> --patch-id <patch-id>");
     eprintln!("avctl trace show --run-id <run-id>");
     eprintln!("avctl trace events --run-id <run-id>");
+    eprintln!("avctl eval run --show-id <show-id> [--run-id <run-id>]");
 }
 
 fn print_response(

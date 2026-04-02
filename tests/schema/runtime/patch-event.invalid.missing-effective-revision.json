@@ -1,5 +1,9 @@
 {
     "patch_id": "patch-phase0-pad-swap",
-    "scope": "next_phrase_boundary",
+    "scope": {
+        "from_bar": 9,
+        "to_bar": 16,
+        "window": "next_phrase_boundary"
+    },
     "fallback_revision": 1
 }
