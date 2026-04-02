@@ -123,6 +123,14 @@ expect_success "trace events with --from-bar --to-bar returns filtered" \
 expect_failure "visual-runtime with unknown run" \
     cargo run -p visual-runtime -- --run-id nonexistent-run
 
+# --- System capabilities: always succeeds ---
+expect_success "system capabilities list" \
+    cargo run -p avctl -- system capabilities
+
+# --- System: invalid subcommand ---
+expect_failure "system with invalid subcommand" \
+    cargo run -p avctl -- system unknown
+
 echo ""
 echo "Results: $pass passed, $fail failed"
 if [ "$fail" -gt 0 ]; then

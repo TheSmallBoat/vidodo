@@ -1,0 +1,62 @@
+{
+    "$schema": "https://json-schema.org/draft/2020-12/schema",
+    "$id": "av.capability.capability-descriptor.v0",
+    "title": "Capability Descriptor",
+    "description": "Metadata describing a single capability exposed by the system's Capability Layer. Used for discovery, routing, and MCP tool mapping.",
+    "type": "object",
+    "required": [
+        "capability",
+        "version",
+        "execution_mode",
+        "idempotency",
+        "authorization"
+    ],
+    "properties": {
+        "capability": {
+            "type": "string",
+            "description": "Unique capability identifier in namespace.verb format, e.g. asset.ingest"
+        },
+        "version": {
+            "type": "string"
+        },
+        "execution_mode": {
+            "type": "string",
+            "enum": [
+                "sync",
+                "async"
+            ]
+        },
+        "idempotency": {
+            "type": "string",
+            "enum": [
+                "idempotent",
+                "conditional",
+                "non_idempotent"
+            ]
+        },
+        "authorization": {
+            "type": "array",
+            "items": {
+                "type": "string"
+            },
+            "minItems": 1
+        },
+        "description": {
+            "type": "string",
+            "default": ""
+        },
+        "input_schema": {
+            "type": "string",
+            "default": ""
+        },
+        "output_schema": {
+            "type": "string",
+            "default": ""
+        },
+        "target_service": {
+            "type": "string",
+            "default": ""
+        }
+    },
+    "additionalProperties": false
+}

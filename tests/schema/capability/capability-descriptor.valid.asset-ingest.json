@@ -1,0 +1,14 @@
+{
+    "capability": "asset.ingest",
+    "version": "0.1",
+    "execution_mode": "async",
+    "idempotency": "conditional",
+    "authorization": [
+        "operator",
+        "planner"
+    ],
+    "description": "Import assets from a source directory, run analysis, and publish to registry.",
+    "input_schema": "av.asset.ingest.input.v0",
+    "output_schema": "av.asset.ingest.output.v0",
+    "target_service": "asset_service"
+}

@@ -1038,3 +1038,61 @@ impl CompiledRevision {
             .find(|section| bar >= section.span.start_bar && bar <= section.span.end_bar)
     }
 }
+
+// ---------------------------------------------------------------------------
+// Capability Layer types (Phase 1)
+// ---------------------------------------------------------------------------
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct CapabilityDescriptor {
+    pub capability: String,
+    pub version: String,
+    pub execution_mode: String,
+    pub idempotency: String,
+    pub authorization: Vec<String>,
+    #[serde(default)]
+    pub description: String,
+    #[serde(default)]
+    pub input_schema: String,
+    #[serde(default)]
+    pub output_schema: String,
+    #[serde(default)]
+    pub target_service: String,
+}
+
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+pub struct CapabilityRequest {
+    pub request_id: String,
+    pub capability: String,
+    pub payload: serde_json::Value,
+    #[serde(default)]
+    pub actor: Option<ActorContext>,
+    #[serde(default)]
+    pub metadata: Option<RequestMetadata>,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct ActorContext {
+    pub actor_id: String,
+    pub role: String,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct RequestMetadata {
+    pub source: String,
+    #[serde(default)]
+    pub trace_parent: Option<String>,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct OperationTicket {
+    pub operation_id: String,
+    pub request_id: String,
+    pub capability: String,
+    pub state: String,
+    pub started_at: u64,
+    #[serde(default)]
+    pub updated_at: Option<u64>,
+    #[serde(default)]
+    pub artifact_refs: Vec<String>,
+}

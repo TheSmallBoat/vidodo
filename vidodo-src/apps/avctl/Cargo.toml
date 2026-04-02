@@ -9,6 +9,7 @@ repository.workspace = true
 [dependencies]
 serde.workspace = true
 serde_json.workspace = true
+vidodo-capability = { path = "../../crates/capability" }
 vidodo-compiler = { path = "../../crates/compiler" }
 vidodo-evaluation = { path = "../../crates/evaluation" }
 vidodo-ir = { path = "../../crates/ir" }

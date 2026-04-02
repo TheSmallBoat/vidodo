@@ -28,6 +28,7 @@ cargo run -p avctl -- revision list --show-id "$show_id" >/dev/null
 cargo run -p avctl -- patch rollback --show-id "$show_id" --patch-id patch-phase0-pad-swap >/dev/null
 cargo run -p avctl -- patch deferred-rollback --show-id "$show_id" --patch-id patch-phase0-pad-swap --anomaly "gpu_overload" --run-id "$run_id" >/dev/null
 cargo run -p visual-runtime -- --run-id "$run_id" >/dev/null
+cargo run -p avctl -- system capabilities >/dev/null
 
 test -f "$repo_root/artifacts/revisions/show-phase0-minimal/revision-2/patch-decision.json"
 test -f "$repo_root/artifacts/traces/run-show-phase0-minimal-rev-2/manifest.json"

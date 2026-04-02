@@ -4,6 +4,7 @@ members = [
     "apps/core-service",
     "apps/mcp-adapter",
     "apps/visual-runtime",
+    "crates/capability",
     "crates/compiler",
     "crates/evaluation",
     "crates/ir",

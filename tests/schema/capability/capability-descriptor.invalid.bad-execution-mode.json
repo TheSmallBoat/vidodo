@@ -1,0 +1,9 @@
+{
+    "capability": "compile.run",
+    "version": "0.1",
+    "execution_mode": "invalid_mode",
+    "idempotency": "conditional",
+    "authorization": [
+        "planner"
+    ]
+}

@@ -5,6 +5,7 @@ use std::path::{Path, PathBuf};
 use std::process::ExitCode;
 
 use serde_json::{Value, json};
+use vidodo_capability::CapabilityRegistry;
 use vidodo_compiler::compile_plan;
 use vidodo_compiler::revision::{
     archive_revision, publish_revision, query_revisions, register_candidate,
@@ -62,6 +63,7 @@ fn run() -> Result<(), ExitCode> {
         "trace" => handle_trace(&context, &args[1..]),
         "eval" => handle_eval(&context, &args[1..]),
         "export" => handle_export(&context, &args[1..]),
+        "system" => handle_system(&args[1..]),
         _ => {
             print_usage();
             Err(ExitCode::from(2))
@@ -980,6 +982,29 @@ fn handle_eval(context: &CommandContext, args: &[String]) -> Result<(), ExitCode
     }
 }
 
+fn handle_system(args: &[String]) -> Result<(), ExitCode> {
+    let capability = "system.capabilities";
+    let request_id = "req-system-capabilities";
+    match args {
+        [command] if command == "capabilities" => {
+            let registry = CapabilityRegistry::default();
+            print_response(
+                capability,
+                request_id,
+                "ok",
+                json!({
+                    "count": registry.len(),
+                    "capabilities": registry.list()
+                }),
+                vec![],
+                vec![],
+                vec![],
+            )
+        }
+        _ => Err(emit_usage_error(capability, request_id, "usage: avctl system capabilities")),
+    }
+}
+
 fn load_plan_bundle(plan_dir: &Path, assets_file: &Path) -> Result<PlanBundle, String> {
     let set_plan: SetPlan = read_json(&plan_dir.join("set-plan.json"))?;
     let audio_dsl: AudioDsl = read_json(&plan_dir.join("audio-dsl.json"))?;
@@ -1211,6 +1236,8 @@ fn print_usage() {
     eprintln!("avctl trace show --run-id <run-id>");
     eprintln!("avctl trace events --run-id <run-id> [--from-bar N] [--to-bar N]");
     eprintln!("avctl eval run --show-id <show-id> [--run-id <run-id>]");
+    eprintln!("avctl export audio --run-id <run-id>");
+    eprintln!("avctl system capabilities");
 }
 
 fn print_response(
