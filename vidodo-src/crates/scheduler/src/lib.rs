@@ -1,11 +1,12 @@
 use serde::{Deserialize, Serialize};
 use vidodo_ir::{
-    AudioEvent, BackendAck, CompiledRevision, EventRecord, LightingEvent, MusicalTime,
-    PatchDecision, PatchEvent, ResourceSample, RunSummary, RuntimePayload, ShowState, TimingEvent,
-    VisualEvent,
+    AudioEvent, BackendAck, BackendHealthSnapshot, CompiledRevision, DegradeEvent, EventRecord,
+    LightingEvent, MusicalTime, PatchDecision, PatchEvent, ResourceSample, RunSummary,
+    RuntimePayload, ShowState, TimingEvent, VisualEvent,
 };
 
 pub mod clock;
+pub mod health_monitor;
 pub mod lookahead;
 pub mod show_state;
 
@@ -18,6 +19,9 @@ pub trait BackendClient {
     fn dispatch_audio(&self, event: &AudioEvent) -> BackendAck;
     fn dispatch_visual(&self, event: &VisualEvent) -> BackendAck;
     fn dispatch_lighting(&self, event: &LightingEvent) -> BackendAck;
+    fn health_snapshots(&self) -> Vec<BackendHealthSnapshot> {
+        Vec::new()
+    }
 }
 
 /// Deterministic fake backend that always returns `ok` acks.
@@ -63,6 +67,7 @@ pub struct ScheduledRun {
     pub final_show_state: ShowState,
     pub patch_decisions: Vec<PatchDecision>,
     pub resource_samples: Vec<ResourceSample>,
+    pub degrade_events: Vec<EventRecord>,
 }
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
@@ -372,9 +377,52 @@ pub fn simulate_run_with_backend(
         final_section: final_show_state.time.section.clone(),
     };
 
+    // Evaluate backend health and emit degrade events if thresholds are exceeded.
+    let snapshots = backend.health_snapshots();
+    let decision =
+        health_monitor::degrade_decision(&snapshots, &health_monitor::HealthThresholds::default());
+    let mut degrade_events = Vec::new();
+    if decision.should_degrade {
+        for (i, mode) in decision.modes.iter().enumerate() {
+            let evt_id = format!("evt-degrade-{:04}", i + 1);
+            degrade_events.push(EventRecord {
+                event_id: evt_id,
+                show_id: compiled.show_id.clone(),
+                revision: compiled.revision,
+                kind: String::from("degrade.activated"),
+                phase: String::from("executed"),
+                source: String::from("health_monitor"),
+                musical_time: MusicalTime::at_bar(
+                    compiled.final_bar(),
+                    1,
+                    final_show_state.time.section.clone(),
+                    128.0,
+                ),
+                scheduler_time_ms,
+                wallclock_time_ms: scheduler_time_ms,
+                causation_id: mode.mode.clone(),
+                payload: RuntimePayload::Degrade(DegradeEvent {
+                    degrade_id: mode.mode.clone(),
+                    mode: mode.mode.clone(),
+                    reason: mode.reason.clone(),
+                    affected_backends: mode.affected_backends.clone(),
+                    fallback_action: mode.fallback_action.clone(),
+                }),
+                ack: None,
+            });
+        }
+    }
+
     let _ = run_id;
 
-    ScheduledRun { events, summary, final_show_state, patch_decisions, resource_samples }
+    ScheduledRun {
+        events,
+        summary,
+        final_show_state,
+        patch_decisions,
+        resource_samples,
+        degrade_events,
+    }
 }
 
 // ShowState construction logic lives in show_state module.
@@ -506,5 +554,61 @@ mod tests {
                 false
             }
         }));
+    }
+
+    #[test]
+    fn emits_degrade_events_from_degraded_backend() {
+        use vidodo_ir::{BackendHealthSnapshot, LightingEvent};
+
+        struct DegradedBackend;
+        impl BackendClient for DegradedBackend {
+            fn dispatch_audio(&self, event: &AudioEvent) -> BackendAck {
+                FakeBackendClient.dispatch_audio(event)
+            }
+            fn dispatch_visual(&self, event: &VisualEvent) -> BackendAck {
+                FakeBackendClient.dispatch_visual(event)
+            }
+            fn dispatch_lighting(&self, event: &LightingEvent) -> BackendAck {
+                FakeBackendClient.dispatch_lighting(event)
+            }
+            fn health_snapshots(&self) -> Vec<BackendHealthSnapshot> {
+                vec![BackendHealthSnapshot {
+                    backend_ref: String::from("audio_backend_1"),
+                    plugin_ref: String::from("plugin-daw-bridge"),
+                    status: String::from("degraded"),
+                    timestamp: String::from("2025-01-01T00:00:00Z"),
+                    latency_ms: Some(300.0),
+                    error_count: Some(0),
+                    last_ack_lag_ms: None,
+                    degrade_reason: Some(String::from("bypass_audio_backend_1")),
+                }]
+            }
+        }
+
+        let compiled =
+            compile_plan(&PlanBundle::minimal("show-phase0")).expect("plan should compile");
+        let run = simulate_run_with_backend(&compiled, "run-degrade-test", &DegradedBackend);
+
+        assert!(!run.degrade_events.is_empty(), "expected degrade events from degraded backend");
+        let degrade = &run.degrade_events[0];
+        assert_eq!(degrade.kind, "degrade.activated");
+        assert_eq!(degrade.source, "health_monitor");
+        if let RuntimePayload::Degrade(ref d) = degrade.payload {
+            assert!(d.affected_backends.contains(&String::from("audio_backend_1")));
+        } else {
+            panic!("expected Degrade payload");
+        }
+    }
+
+    #[test]
+    fn no_degrade_events_from_healthy_backend() {
+        let compiled =
+            compile_plan(&PlanBundle::minimal("show-phase0")).expect("plan should compile");
+        let run = simulate_run(&compiled, "run-healthy-test");
+
+        assert!(
+            run.degrade_events.is_empty(),
+            "healthy FakeBackendClient should produce no degrade events"
+        );
     }
 }

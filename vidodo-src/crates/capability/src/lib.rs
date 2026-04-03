@@ -84,6 +84,8 @@ pub enum RouteTarget {
     ExportAudio,
     SystemDoctor,
     SystemCapabilities,
+    SystemAdapters,
+    SystemHubs,
 }
 
 /// Route a capability identifier to a typed target.
@@ -110,6 +112,8 @@ pub fn route(capability: &str) -> Result<RouteTarget, Box<Diagnostic>> {
         "export.audio" => Ok(RouteTarget::ExportAudio),
         "system.doctor" => Ok(RouteTarget::SystemDoctor),
         "system.capabilities" => Ok(RouteTarget::SystemCapabilities),
+        "system.adapters" => Ok(RouteTarget::SystemAdapters),
+        "system.hubs" => Ok(RouteTarget::SystemHubs),
         _ => Err(Box::new(Diagnostic::error(
             "CAP-001",
             format!("unsupported capability: {capability}"),
@@ -154,6 +158,8 @@ pub fn mcp_tool_mappings() -> Vec<McpToolMapping> {
         mcp_map("export.audio", "export.audio", false, true),
         mcp_map("system.doctor", "system.doctor", true, false),
         mcp_map("system.capabilities", "system.capabilities", true, false),
+        mcp_map("system.adapters", "system.adapters", true, false),
+        mcp_map("system.hubs", "system.hubs", true, false),
     ]
 }
 
@@ -182,6 +188,8 @@ pub fn resolve_mcp_tool(tool_name: &str) -> Option<&'static str> {
         "export.audio" => Some("export.audio"),
         "system.doctor" => Some("system.doctor"),
         "system.capabilities" => Some("system.capabilities"),
+        "system.adapters" => Some("system.adapters"),
+        "system.hubs" => Some("system.hubs"),
         _ => None,
     }
 }
@@ -407,6 +415,14 @@ fn capability_schemas(capability: &str) -> (String, String) {
             r#"{"type":"object","properties":{}}"#.into(),
             r#"{"type":"object","properties":{"count":{"type":"integer"},"capabilities":{"type":"array","items":{"type":"object","properties":{"capability":{"type":"string"},"version":{"type":"string"},"execution_mode":{"type":"string"},"description":{"type":"string"},"input_schema":{"type":"string"},"output_schema":{"type":"string"}}}}}}"#.into(),
         ),
+        "system.adapters" => (
+            r#"{"type":"object","properties":{"backend_kind":{"type":"string"}}}"#.into(),
+            r#"{"type":"object","properties":{"count":{"type":"integer"},"adapters":{"type":"array","items":{"type":"object"}}}}"#.into(),
+        ),
+        "system.hubs" => (
+            r#"{"type":"object","properties":{"resource_kind":{"type":"string"}}}"#.into(),
+            r#"{"type":"object","properties":{"count":{"type":"integer"},"hubs":{"type":"array","items":{"type":"object"}}}}"#.into(),
+        ),
         _ => (String::new(), String::new()),
     }
 }
@@ -506,6 +522,14 @@ fn builtin_descriptors() -> Vec<CapabilityDescriptor> {
             &["operator", "planner"],
             "List available capabilities",
         ),
+        cap(
+            "system.adapters",
+            "sync",
+            "idempotent",
+            &["operator"],
+            "List registered adapter plugins",
+        ),
+        cap("system.hubs", "sync", "idempotent", &["operator"], "List registered resource hubs"),
     ]
 }
 
@@ -518,9 +542,9 @@ mod tests {
     use super::*;
 
     #[test]
-    fn default_registry_has_21_capabilities() {
+    fn default_registry_has_23_capabilities() {
         let registry = CapabilityRegistry::default();
-        assert_eq!(registry.len(), 21);
+        assert_eq!(registry.len(), 23);
     }
 
     #[test]
@@ -632,14 +656,14 @@ mod tests {
         let json = serde_json::to_string(registry.list()).expect("serialize");
         let deserialized: Vec<CapabilityDescriptor> =
             serde_json::from_str(&json).expect("deserialize");
-        assert_eq!(deserialized.len(), 21);
+        assert_eq!(deserialized.len(), 23);
         assert_eq!(deserialized[0].capability, "asset.ingest");
     }
 
     #[test]
-    fn mcp_tool_mappings_has_21_entries() {
+    fn mcp_tool_mappings_has_23_entries() {
         let mappings = mcp_tool_mappings();
-        assert_eq!(mappings.len(), 21);
+        assert_eq!(mappings.len(), 23);
         // Every mapping's capability should exist in the registry
         let registry = CapabilityRegistry::default();
         for m in &mappings {

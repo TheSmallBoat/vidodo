@@ -923,6 +923,18 @@ pub struct LightingEvent {
     pub fade_beats: Option<f64>,
 }
 
+/// Runtime event emitted when a backend degradation is detected.
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+pub struct DegradeEvent {
+    pub degrade_id: String,
+    pub mode: String,
+    pub reason: String,
+    #[serde(default)]
+    pub affected_backends: Vec<String>,
+    #[serde(default)]
+    pub fallback_action: Option<String>,
+}
+
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 #[serde(tag = "payload_type", content = "payload", rename_all = "snake_case")]
 pub enum RuntimePayload {
@@ -931,6 +943,7 @@ pub enum RuntimePayload {
     Visual(VisualEvent),
     Patch(PatchEvent),
     Lighting(LightingEvent),
+    Degrade(DegradeEvent),
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]

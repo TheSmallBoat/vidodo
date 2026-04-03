@@ -4,6 +4,7 @@ use std::path::{Path, PathBuf};
 use std::{fs, process};
 
 use serde_json::{Value, json};
+use vidodo_adapter_registry::AdapterRegistry;
 use vidodo_capability::{
     CapabilityRegistry, RouteTarget, mcp_tool_mappings, resolve_mcp_tool, route,
 };
@@ -15,6 +16,7 @@ use vidodo_ir::{
     LivePatchProposal, PatchDecision, PlanBundle, ResponseEnvelope, SetPlan, VisualDsl,
 };
 use vidodo_patch_manager::{apply_patch, check_patch, deferred_rollback, rollback_patch};
+use vidodo_resource_hub::ResourceHubRegistry;
 use vidodo_scheduler::{RunStatusRecord, simulate_run};
 use vidodo_storage::{
     ArtifactLayout, AssetIngestRequest, AssetQuery, discover_repo_root, get_asset, ingest_assets,
@@ -22,7 +24,8 @@ use vidodo_storage::{
     write_json,
 };
 use vidodo_trace::{
-    export_audio, filter_events_by_bar, load_events, load_manifest, manifest_path, write_trace,
+    append_degrade_events, export_audio, filter_events_by_bar, load_events, load_manifest,
+    manifest_path, write_trace,
 };
 use vidodo_validator::validate_plan;
 
@@ -255,6 +258,22 @@ fn dispatch(
                 json!({"count": list.len(), "capabilities": list}),
             ))
         }
+        RouteTarget::SystemAdapters => {
+            let registry = AdapterRegistry::new();
+            Ok(ok_envelope(
+                capability,
+                request_id,
+                json!({"count": registry.list().len(), "adapters": registry.list()}),
+            ))
+        }
+        RouteTarget::SystemHubs => {
+            let registry = ResourceHubRegistry::new();
+            Ok(ok_envelope(
+                capability,
+                request_id,
+                json!({"count": registry.list_hubs().len(), "hubs": registry.list_hubs()}),
+            ))
+        }
     }
 }
 
@@ -478,6 +497,10 @@ fn dispatch_run_start(
         &scheduled.resource_samples,
     )
     .map_err(|msg| err_str(capability, request_id, &msg))?;
+    if !scheduled.degrade_events.is_empty() {
+        append_degrade_events(&state.layout, &run_id, &scheduled.degrade_events)
+            .map_err(|msg| err_str(capability, request_id, &msg))?;
+    }
     let status_record = RunStatusRecord {
         show_id: show_id.clone(),
         run_id: run_id.clone(),
@@ -974,11 +997,11 @@ mod tests {
     }
 
     #[test]
-    fn tools_list_returns_21_tools() {
+    fn tools_list_returns_23_tools() {
         let state = test_state();
         let result = handle_tools_list(&state);
         let tools = result["tools"].as_array().unwrap();
-        assert_eq!(tools.len(), 21, "expected 21 tools, got {}", tools.len());
+        assert_eq!(tools.len(), 23, "expected 23 tools, got {}", tools.len());
         for tool in tools {
             assert!(tool["name"].is_string(), "tool missing name");
             assert!(tool["description"].is_string(), "tool missing description");

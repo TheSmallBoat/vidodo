@@ -55,7 +55,7 @@ check "CLI compile.run produces timeline entries" test "$cli_timeline" -ge 1
 
 cli_caps=$("$avctl" system capabilities 2>/dev/null)
 cli_cap_count=$(echo "$cli_caps" | python3 -c "import sys,json; d=json.load(sys.stdin); print(d.get('data',{}).get('count', len(d) if isinstance(d,list) else 0))" 2>/dev/null || echo "0")
-check "CLI system.capabilities returns 21" test "$cli_cap_count" = "21"
+check "CLI system.capabilities returns 23" test "$cli_cap_count" = "23"
 
 echo ""
 echo "=== Phase 1 Acceptance: HTTP Entry Point ==="
@@ -83,7 +83,7 @@ check "HTTP /health returns ok" \
 
 http_caps=$(curl -sf http://127.0.0.1:7400/capabilities 2>/dev/null || echo "{}")
 http_cap_count=$(echo "$http_caps" | python3 -c "import sys,json; print(len(json.load(sys.stdin).get('capabilities',[])))" 2>/dev/null || echo "0")
-check "HTTP /capabilities returns 21" test "$http_cap_count" = "21"
+check "HTTP /capabilities returns 23" test "$http_cap_count" = "23"
 
 # Reset artifacts for HTTP round
 rm -rf "$repo_root/artifacts"
@@ -111,7 +111,7 @@ http_sys_caps=$(curl -sf -X POST http://127.0.0.1:7400/capability/system.capabil
   -H "Content-Type: application/json" \
   -d "{}" 2>/dev/null || echo "{}")
 http_sys_cap_count=$(echo "$http_sys_caps" | python3 -c "import sys,json; print(json.load(sys.stdin).get('data',{}).get('count',0))" 2>/dev/null || echo "0")
-check "HTTP system.capabilities count=21" test "$http_sys_cap_count" = "21"
+check "HTTP system.capabilities count=23" test "$http_sys_cap_count" = "23"
 
 # HTTP: run start + run status + trace + eval + export
 http_run=$(curl -sf -X POST http://127.0.0.1:7400/capability/run.start \
@@ -181,12 +181,12 @@ check "MCP initialize returns protocolVersion" \
 
 mcp_tools=$(get_mcp_response 2)
 mcp_tool_count=$(echo "$mcp_tools" | python3 -c "import sys,json; print(len(json.load(sys.stdin)['result']['tools']))")
-check "MCP tools/list returns 21 tools" test "$mcp_tool_count" = "21"
+check "MCP tools/list returns 23 tools" test "$mcp_tool_count" = "23"
 
 mcp_caps=$(get_mcp_response 3)
 mcp_caps_text=$(echo "$mcp_caps" | python3 -c "import sys,json; r=json.load(sys.stdin)['result']; print(r['content'][0]['text'])")
 mcp_cap_count=$(echo "$mcp_caps_text" | python3 -c "import sys,json; print(json.load(sys.stdin)['data']['count'])")
-check "MCP system.capabilities returns 21" test "$mcp_cap_count" = "21"
+check "MCP system.capabilities returns 23" test "$mcp_cap_count" = "23"
 
 mcp_validate=$(get_mcp_response 4)
 mcp_validate_text=$(echo "$mcp_validate" | python3 -c "import sys,json; r=json.load(sys.stdin)['result']; print(r['content'][0]['text'])")
@@ -243,8 +243,8 @@ check "Equivalence: CLI/HTTP/MCP timeline_entries all match" \
   test "$cli_timeline" = "$http_timeline" -a "$cli_timeline" = "$mcp_timeline"
 
 # All three entry points returned the same capability count
-check "Equivalence: CLI/HTTP/MCP capability count all 21" \
-  test "$cli_cap_count" = "21" -a "$http_sys_cap_count" = "21" -a "$mcp_cap_count" = "21"
+check "Equivalence: CLI/HTTP/MCP capability count all 23" \
+  test "$cli_cap_count" = "23" -a "$http_sys_cap_count" = "23" -a "$mcp_cap_count" = "23"
 
 echo ""
 echo "Results: $passed passed, $failed failed"

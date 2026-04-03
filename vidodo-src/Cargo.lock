@@ -47,11 +47,13 @@ version = "0.1.0"
 dependencies = [
  "serde",
  "serde_json",
+ "vidodo-adapter-registry",
  "vidodo-capability",
  "vidodo-compiler",
  "vidodo-evaluation",
  "vidodo-ir",
  "vidodo-patch-manager",
+ "vidodo-resource-hub",
  "vidodo-scheduler",
  "vidodo-storage",
  "vidodo-trace",
@@ -215,11 +217,13 @@ dependencies = [
  "tempfile",
  "tokio",
  "tower",
+ "vidodo-adapter-registry",
  "vidodo-capability",
  "vidodo-compiler",
  "vidodo-evaluation",
  "vidodo-ir",
  "vidodo-patch-manager",
+ "vidodo-resource-hub",
  "vidodo-scheduler",
  "vidodo-storage",
  "vidodo-trace",
@@ -641,11 +645,13 @@ version = "0.1.0"
 dependencies = [
  "serde",
  "serde_json",
+ "vidodo-adapter-registry",
  "vidodo-capability",
  "vidodo-compiler",
  "vidodo-evaluation",
  "vidodo-ir",
  "vidodo-patch-manager",
+ "vidodo-resource-hub",
  "vidodo-scheduler",
  "vidodo-storage",
  "vidodo-trace",
@@ -1074,6 +1080,13 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "0b928f33d975fc6ad9f86c8f283853ad26bdd5b10b7f1542aa2fa15e2289105a"
 
 [[package]]
+name = "vidodo-adapter-registry"
+version = "0.1.0"
+dependencies = [
+ "vidodo-ir",
+]
+
+[[package]]
 name = "vidodo-capability"
 version = "0.1.0"
 dependencies = [
@@ -1120,6 +1133,13 @@ version = "0.1.0"
 dependencies = [
  "serde",
  "vidodo-compiler",
+ "vidodo-ir",
+]
+
+[[package]]
+name = "vidodo-resource-hub"
+version = "0.1.0"
+dependencies = [
  "vidodo-ir",
 ]
 

@@ -11,6 +11,7 @@ use axum::{
     routing::{get, post},
 };
 use serde_json::{Value, json};
+use vidodo_adapter_registry::AdapterRegistry;
 use vidodo_capability::{CapabilityRegistry, RouteTarget, route};
 use vidodo_compiler::compile_plan;
 use vidodo_compiler::revision::{archive_revision, publish_revision};
@@ -20,6 +21,7 @@ use vidodo_ir::{
     LivePatchProposal, PatchDecision, PlanBundle, ResponseEnvelope, SetPlan, VisualDsl,
 };
 use vidodo_patch_manager::{apply_patch, check_patch, deferred_rollback, rollback_patch};
+use vidodo_resource_hub::ResourceHubRegistry;
 use vidodo_scheduler::{RunStatusRecord, simulate_run};
 use vidodo_storage::{
     ArtifactLayout, AssetIngestRequest, AssetQuery, discover_repo_root, get_asset, ingest_assets,
@@ -27,7 +29,8 @@ use vidodo_storage::{
     write_json,
 };
 use vidodo_trace::{
-    export_audio, filter_events_by_bar, load_events, load_manifest, manifest_path, write_trace,
+    append_degrade_events, export_audio, filter_events_by_bar, load_events, load_manifest,
+    manifest_path, write_trace,
 };
 use vidodo_validator::validate_plan;
 
@@ -165,6 +168,22 @@ fn dispatch(
                 capability,
                 request_id,
                 json!({"count": list.len(), "capabilities": list}),
+            ))
+        }
+        RouteTarget::SystemAdapters => {
+            let registry = AdapterRegistry::new();
+            Ok(ok_envelope(
+                capability,
+                request_id,
+                json!({"count": registry.list().len(), "adapters": registry.list()}),
+            ))
+        }
+        RouteTarget::SystemHubs => {
+            let registry = ResourceHubRegistry::new();
+            Ok(ok_envelope(
+                capability,
+                request_id,
+                json!({"count": registry.list_hubs().len(), "hubs": registry.list_hubs()}),
             ))
         }
     }
@@ -410,6 +429,10 @@ fn dispatch_run_start(
         &scheduled.resource_samples,
     )
     .map_err(|msg| error_envelope_str(capability, request_id, "SVC-051", &msg))?;
+    if !scheduled.degrade_events.is_empty() {
+        append_degrade_events(&state.layout, &run_id, &scheduled.degrade_events)
+            .map_err(|msg| error_envelope_str(capability, request_id, "SVC-051", &msg))?;
+    }
     let status_record = RunStatusRecord {
         show_id: show_id.clone(),
         run_id: run_id.clone(),

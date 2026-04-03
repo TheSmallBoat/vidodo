@@ -1,4 +1,5 @@
 use std::fs;
+use std::io::Write;
 use std::path::PathBuf;
 
 use vidodo_ir::{
@@ -88,6 +89,32 @@ pub fn filter_events_by_bar(
 
 pub fn manifest_path(layout: &ArtifactLayout, run_id: &str) -> PathBuf {
     layout.trace_dir(run_id).join("manifest.json")
+}
+
+/// Append degrade event records to an existing trace's events.jsonl file.
+///
+/// The events are serialized as individual JSON lines and appended to the
+/// existing file.  If the trace directory or events file does not exist,
+/// an error is returned.
+pub fn append_degrade_events(
+    layout: &ArtifactLayout,
+    run_id: &str,
+    events: &[EventRecord],
+) -> Result<(), String> {
+    let events_path = layout.trace_dir(run_id).join("events.jsonl");
+    if !events_path.exists() {
+        return Err(format!("events.jsonl not found for run '{run_id}'"));
+    }
+    let mut file = fs::OpenOptions::new()
+        .append(true)
+        .open(&events_path)
+        .map_err(|e| format!("failed to open events.jsonl for append: {e}"))?;
+    for event in events {
+        let line =
+            serde_json::to_string(event).map_err(|e| format!("failed to serialize event: {e}"))?;
+        writeln!(file, "{line}").map_err(|e| format!("failed to write event: {e}"))?;
+    }
+    Ok(())
 }
 
 /// Generate a minimal deterministic WAV file representing the offline mix.
@@ -301,5 +328,60 @@ mod tests {
         // Filtering beyond range returns empty
         let empty = filter_events_by_bar(&run.events, max_bar + 100, max_bar + 200);
         assert!(empty.is_empty());
+    }
+
+    #[test]
+    fn append_degrade_events_adds_to_trace() {
+        let tmp = tempfile::tempdir().expect("tempdir");
+        let layout = ArtifactLayout::new(tmp.path());
+        layout.ensure().expect("ensure layout");
+
+        let compiled = compile_plan(&PlanBundle::minimal("show-degrade")).expect("compile");
+        let run = simulate_run(&compiled, "run-degrade");
+        let initial_count = run.events.len();
+
+        write_trace(
+            &layout,
+            "run-degrade",
+            &compiled,
+            "offline",
+            &run.summary,
+            &run.final_show_state,
+            &run.events,
+            &run.patch_decisions,
+            &run.resource_samples,
+        )
+        .expect("write_trace");
+
+        // Append a degrade event
+        let degrade_event = EventRecord {
+            event_id: String::from("evt-degrade-001"),
+            show_id: compiled.show_id.clone(),
+            revision: compiled.revision,
+            kind: String::from("degrade"),
+            phase: String::from("runtime"),
+            source: String::from("health_monitor"),
+            musical_time: vidodo_ir::MusicalTime::at_bar(1, 1, "intro", 128.0),
+            scheduler_time_ms: 0,
+            wallclock_time_ms: 0,
+            causation_id: String::from("health-check-001"),
+            payload: vidodo_ir::RuntimePayload::Degrade(vidodo_ir::DegradeEvent {
+                degrade_id: String::from("deg-001"),
+                mode: String::from("degrade_audio"),
+                reason: String::from("backend offline"),
+                affected_backends: vec![String::from("audio-1")],
+                fallback_action: Some(String::from("bypass_audio")),
+            }),
+            ack: None,
+        };
+
+        append_degrade_events(&layout, "run-degrade", &[degrade_event]).expect("append");
+
+        // Reload and verify
+        let all_events = load_events(&layout, "run-degrade").expect("load");
+        assert_eq!(all_events.len(), initial_count + 1);
+        let last = all_events.last().unwrap();
+        assert_eq!(last.kind, "degrade");
+        assert!(matches!(last.payload, vidodo_ir::RuntimePayload::Degrade(_)));
     }
 }

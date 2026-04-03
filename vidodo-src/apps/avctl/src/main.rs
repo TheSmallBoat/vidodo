@@ -5,6 +5,7 @@ use std::path::{Path, PathBuf};
 use std::process::ExitCode;
 
 use serde_json::{Value, json};
+use vidodo_adapter_registry::AdapterRegistry;
 use vidodo_capability::CapabilityRegistry;
 use vidodo_compiler::compile_plan;
 use vidodo_compiler::revision::{
@@ -16,6 +17,7 @@ use vidodo_ir::{
     LivePatchProposal, PatchDecision, PlanBundle, ResponseEnvelope, SetPlan, VisualDsl,
 };
 use vidodo_patch_manager::{apply_patch, check_patch, deferred_rollback, rollback_patch};
+use vidodo_resource_hub::ResourceHubRegistry;
 use vidodo_scheduler::{RunStatusRecord, simulate_run};
 use vidodo_storage::{
     ArtifactLayout, AssetIngestRequest, AssetQuery, discover_repo_root, get_asset, ingest_assets,
@@ -23,7 +25,8 @@ use vidodo_storage::{
     write_json,
 };
 use vidodo_trace::{
-    export_audio, filter_events_by_bar, load_events, load_manifest, manifest_path, write_trace,
+    append_degrade_events, export_audio, filter_events_by_bar, load_events, load_manifest,
+    manifest_path, write_trace,
 };
 use vidodo_validator::validate_plan;
 
@@ -155,6 +158,10 @@ fn handle_doctor(context: &CommandContext) -> Result<(), ExitCode> {
         &simulated_run.resource_samples,
     )
     .map_err(|message| emit_error(capability, request_id, "CLI-005", message))?;
+    if !simulated_run.degrade_events.is_empty() {
+        append_degrade_events(&context.layout, &run_id, &simulated_run.degrade_events)
+            .map_err(|message| emit_error(capability, request_id, "CLI-005", message))?;
+    }
     let manifest_file = manifest_path(&context.layout, &run_id);
     let trace_manifest_ref = relative_to_repo(context, &manifest_file);
     artifacts.push(trace_manifest_ref.clone());
@@ -578,6 +585,10 @@ fn handle_run(context: &CommandContext, args: &[String]) -> Result<(), ExitCode>
                 &scheduled.resource_samples,
             )
             .map_err(|message| emit_error(capability, request_id, "CLI-033", message))?;
+            if !scheduled.degrade_events.is_empty() {
+                append_degrade_events(&context.layout, &run_id, &scheduled.degrade_events)
+                    .map_err(|message| emit_error(capability, request_id, "CLI-033", message))?;
+            }
             let trace_manifest =
                 relative_to_repo(context, &manifest_path(&context.layout, &run_id));
             let status_record = RunStatusRecord {
@@ -983,10 +994,10 @@ fn handle_eval(context: &CommandContext, args: &[String]) -> Result<(), ExitCode
 }
 
 fn handle_system(args: &[String]) -> Result<(), ExitCode> {
-    let capability = "system.capabilities";
-    let request_id = "req-system-capabilities";
     match args {
         [command] if command == "capabilities" => {
+            let capability = "system.capabilities";
+            let request_id = "req-system-capabilities";
             let registry = CapabilityRegistry::default();
             print_response(
                 capability,
@@ -1001,7 +1012,45 @@ fn handle_system(args: &[String]) -> Result<(), ExitCode> {
                 vec![],
             )
         }
-        _ => Err(emit_usage_error(capability, request_id, "usage: avctl system capabilities")),
+        [command] if command == "adapters" => {
+            let capability = "system.adapters";
+            let request_id = "req-system-adapters";
+            let registry = AdapterRegistry::new();
+            print_response(
+                capability,
+                request_id,
+                "ok",
+                json!({
+                    "count": registry.list().len(),
+                    "adapters": registry.list()
+                }),
+                vec![],
+                vec![],
+                vec![],
+            )
+        }
+        [command] if command == "hubs" => {
+            let capability = "system.hubs";
+            let request_id = "req-system-hubs";
+            let registry = ResourceHubRegistry::new();
+            print_response(
+                capability,
+                request_id,
+                "ok",
+                json!({
+                    "count": registry.list_hubs().len(),
+                    "hubs": registry.list_hubs()
+                }),
+                vec![],
+                vec![],
+                vec![],
+            )
+        }
+        _ => Err(emit_usage_error(
+            "system",
+            "req-system",
+            "usage: avctl system <capabilities|adapters|hubs>",
+        )),
     }
 }
 

@@ -1,6 +1,8 @@
 use std::collections::BTreeSet;
 
-use vidodo_ir::{Diagnostic, PlanBundle};
+use vidodo_ir::{
+    DeploymentProfile, Diagnostic, DistributedNodeDescriptor, PlanBundle, TransportContract,
+};
 
 pub fn validate_plan(plan: &PlanBundle) -> Vec<Diagnostic> {
     let mut diagnostics = Vec::new();
@@ -101,9 +103,76 @@ pub fn validate_plan(plan: &PlanBundle) -> Vec<Diagnostic> {
     diagnostics
 }
 
+// ---------------------------------------------------------------------------
+// Deployment validation (WSL-03: DEP-001 ~ DEP-003)
+// ---------------------------------------------------------------------------
+
+/// Validate a deployment profile against its constituent nodes and transports.
+///
+/// Returns diagnostics for:
+/// - DEP-001: orphan nodes (referenced but have no transport contracts)
+/// - DEP-002: undefined transport contracts
+/// - DEP-003: duplicate or undefined node IDs
+pub fn validate_deployment(
+    profile: &DeploymentProfile,
+    nodes: &[DistributedNodeDescriptor],
+    transports: &[TransportContract],
+) -> Vec<Diagnostic> {
+    let mut diagnostics = Vec::new();
+
+    let known_node_ids: BTreeSet<&str> = nodes.iter().map(|n| n.node_id.as_str()).collect();
+    let known_transport_ids: BTreeSet<&str> =
+        transports.iter().map(|t| t.transport_id.as_str()).collect();
+
+    // DEP-003: check for duplicate node IDs and undefined node refs
+    let mut seen_nodes = BTreeSet::new();
+    for node in nodes {
+        if !seen_nodes.insert(node.node_id.as_str()) {
+            diagnostics.push(Diagnostic::error(
+                "DEP-003",
+                format!("duplicate node ID '{}'", node.node_id),
+            ));
+        }
+    }
+    for node_ref in &profile.node_refs {
+        if !known_node_ids.contains(node_ref.as_str()) {
+            diagnostics.push(Diagnostic::error(
+                "DEP-003",
+                format!("node_ref '{}' not found in provided nodes", node_ref),
+            ));
+        }
+    }
+
+    // DEP-002: check that all transport_refs in the profile exist
+    for transport_ref in &profile.transport_refs {
+        if !known_transport_ids.contains(transport_ref.as_str()) {
+            diagnostics.push(Diagnostic::error(
+                "DEP-002",
+                format!("transport contract '{}' referenced but not defined", transport_ref),
+            ));
+        }
+    }
+
+    // DEP-001: orphan node detection — nodes referenced in profile with no transport_refs
+    let profile_node_set: BTreeSet<&str> = profile.node_refs.iter().map(|r| r.as_str()).collect();
+    for node in nodes {
+        if profile_node_set.contains(node.node_id.as_str()) && node.transport_refs.is_empty() {
+            diagnostics.push(Diagnostic::error(
+                "DEP-001",
+                format!(
+                    "node '{}' has no transport contracts; cannot participate in deployment",
+                    node.node_id,
+                ),
+            ));
+        }
+    }
+
+    diagnostics
+}
+
 #[cfg(test)]
 mod tests {
-    use super::validate_plan;
+    use super::{validate_deployment, validate_plan};
     use vidodo_ir::PlanBundle;
 
     #[test]
@@ -168,6 +237,127 @@ mod tests {
     fn accepts_valid_minimal_plan() {
         let plan = PlanBundle::minimal("show-phase0");
         let diagnostics = validate_plan(&plan);
+        let errors: Vec<_> = diagnostics.iter().filter(|d| d.severity == "error").collect();
+        assert!(errors.is_empty(), "expected no errors but got: {:?}", errors);
+    }
+
+    // -----------------------------------------------------------------------
+    // Deployment validation tests
+    // -----------------------------------------------------------------------
+
+    use vidodo_ir::{DeploymentProfile, DistributedNodeDescriptor, TransportContract};
+
+    fn sample_node(id: &str, transports: &[&str]) -> DistributedNodeDescriptor {
+        DistributedNodeDescriptor {
+            node_id: id.to_string(),
+            node_role: String::from("audio_renderer"),
+            host_ref: None,
+            plugin_refs: Vec::new(),
+            assigned_topologies: Vec::new(),
+            resource_hub_mounts: Vec::new(),
+            transport_refs: transports.iter().map(|s| s.to_string()).collect(),
+            health_endpoint: None,
+            status: None,
+        }
+    }
+
+    fn sample_transport(id: &str) -> TransportContract {
+        TransportContract {
+            transport_id: id.to_string(),
+            bus_kind: String::from("control"),
+            protocol: String::from("nats"),
+            topology: None,
+            ordering: None,
+            delivery_guarantee: None,
+            latency_budget_ms: None,
+            reconnect_policy: None,
+            security_profile: None,
+        }
+    }
+
+    fn sample_profile(nodes: &[&str], transports: &[&str]) -> DeploymentProfile {
+        DeploymentProfile {
+            deployment_id: String::from("dep-1"),
+            mode: String::from("multi_node"),
+            node_refs: nodes.iter().map(|s| s.to_string()).collect(),
+            transport_refs: transports.iter().map(|s| s.to_string()).collect(),
+            time_authority: None,
+            resource_prewarm_policy: None,
+            rollout_strategy: None,
+            failure_policy: None,
+            trace_policy: None,
+        }
+    }
+
+    #[test]
+    fn dep001_detects_orphan_node_without_transport() {
+        let nodes = vec![
+            sample_node("n1", &["t1"]),
+            sample_node("n2", &[]), // orphan — no transports
+        ];
+        let transports = vec![sample_transport("t1")];
+        let profile = sample_profile(&["n1", "n2"], &["t1"]);
+
+        let diagnostics = validate_deployment(&profile, &nodes, &transports);
+        assert!(
+            diagnostics.iter().any(|d| d.code == "DEP-001"),
+            "expected DEP-001: {:?}",
+            diagnostics
+        );
+    }
+
+    #[test]
+    fn dep002_detects_undefined_transport() {
+        let nodes = vec![sample_node("n1", &["t1"])];
+        let transports = vec![sample_transport("t1")];
+        let profile = sample_profile(&["n1"], &["t1", "t_missing"]);
+
+        let diagnostics = validate_deployment(&profile, &nodes, &transports);
+        assert!(
+            diagnostics.iter().any(|d| d.code == "DEP-002"),
+            "expected DEP-002: {:?}",
+            diagnostics
+        );
+    }
+
+    #[test]
+    fn dep003_detects_duplicate_node_id() {
+        let nodes = vec![
+            sample_node("n1", &["t1"]),
+            sample_node("n1", &["t1"]), // duplicate
+        ];
+        let transports = vec![sample_transport("t1")];
+        let profile = sample_profile(&["n1"], &["t1"]);
+
+        let diagnostics = validate_deployment(&profile, &nodes, &transports);
+        assert!(
+            diagnostics.iter().any(|d| d.code == "DEP-003"),
+            "expected DEP-003: {:?}",
+            diagnostics
+        );
+    }
+
+    #[test]
+    fn dep003_detects_undefined_node_ref() {
+        let nodes = vec![sample_node("n1", &["t1"])];
+        let transports = vec![sample_transport("t1")];
+        let profile = sample_profile(&["n1", "n_missing"], &["t1"]);
+
+        let diagnostics = validate_deployment(&profile, &nodes, &transports);
+        assert!(
+            diagnostics.iter().any(|d| d.code == "DEP-003"),
+            "expected DEP-003: {:?}",
+            diagnostics
+        );
+    }
+
+    #[test]
+    fn valid_deployment_produces_no_errors() {
+        let nodes = vec![sample_node("n1", &["t1"]), sample_node("n2", &["t1"])];
+        let transports = vec![sample_transport("t1")];
+        let profile = sample_profile(&["n1", "n2"], &["t1"]);
+
+        let diagnostics = validate_deployment(&profile, &nodes, &transports);
         let errors: Vec<_> = diagnostics.iter().filter(|d| d.severity == "error").collect();
         assert!(errors.is_empty(), "expected no errors but got: {:?}", errors);
     }
