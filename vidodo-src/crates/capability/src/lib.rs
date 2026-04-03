@@ -5,6 +5,8 @@ use vidodo_ir::{
     CapabilityDescriptor, CapabilityRequest, Diagnostic, OperationTicket, ResponseEnvelope,
 };
 
+pub mod policy;
+
 // ---------------------------------------------------------------------------
 // Capability Registry
 // ---------------------------------------------------------------------------

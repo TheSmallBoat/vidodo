@@ -3,6 +3,7 @@ use std::collections::BTreeMap;
 use vidodo_ir::ResourceHubDescriptor;
 
 pub mod persistence;
+pub mod resolver;
 
 /// In-memory registry of external resource hubs.
 ///

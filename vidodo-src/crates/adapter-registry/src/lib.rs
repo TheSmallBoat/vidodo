@@ -2,6 +2,9 @@ use std::collections::BTreeMap;
 
 use vidodo_ir::{AdapterPluginManifest, BackendHealthSnapshot, HealthContract};
 
+pub mod loader;
+pub mod persistence;
+
 /// In-memory registry of adapter plugins.
 ///
 /// Supports registration, lookup by plugin_id, filtering by backend_kind,
