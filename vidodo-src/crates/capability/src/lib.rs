@@ -7,6 +7,8 @@ use vidodo_ir::{
 
 pub mod policy;
 
+pub use policy::{ActorContext, PolicyDecision, PolicyEngine};
+
 // ---------------------------------------------------------------------------
 // Capability Registry
 // ---------------------------------------------------------------------------
@@ -120,6 +122,32 @@ pub fn route(capability: &str) -> Result<RouteTarget, Box<Diagnostic>> {
             "CAP-001",
             format!("unsupported capability: {capability}"),
         ))),
+    }
+}
+
+/// Route a capability request with authorization enforcement.
+///
+/// Evaluates the [`PolicyEngine`] before routing. If the policy returns
+/// [`PolicyDecision::Deny`], an `AUZ-001` diagnostic is returned instead
+/// of a route target. [`PolicyDecision::Degrade`] also routes but returns
+/// the warning diagnostic alongside the target.
+pub fn route_with_policy(
+    capability: &str,
+    request: &CapabilityRequest,
+    actor: &ActorContext,
+    engine: &PolicyEngine,
+) -> Result<(RouteTarget, Option<Diagnostic>), Box<Diagnostic>> {
+    let decision = engine.evaluate(request, actor);
+    match decision {
+        PolicyDecision::Deny { reason } => Err(Box::new(Diagnostic::error("AUZ-001", reason))),
+        PolicyDecision::Degrade { reason } => {
+            let target = route(capability)?;
+            Ok((target, Some(Diagnostic::warning("AUZ-002", reason))))
+        }
+        PolicyDecision::Allow => {
+            let target = route(capability)?;
+            Ok((target, None))
+        }
     }
 }
 
@@ -697,5 +725,68 @@ mod tests {
                 m.tool_name, m.is_async, desc.execution_mode
             );
         }
+    }
+
+    // -----------------------------------------------------------------------
+    // WSQ-03 — route_with_policy tests
+    // -----------------------------------------------------------------------
+
+    fn make_request(capability: &str) -> CapabilityRequest {
+        CapabilityRequest {
+            request_id: String::from("req-test"),
+            capability: capability.to_string(),
+            payload: serde_json::Value::Null,
+            actor: None,
+            metadata: None,
+        }
+    }
+
+    fn make_actor(role: &str) -> ActorContext {
+        ActorContext { role: role.to_string(), actor_id: String::from("test-actor") }
+    }
+
+    #[test]
+    fn route_with_policy_allows_human_operator() {
+        let engine = PolicyEngine::default_policy();
+        let req = make_request("compile.run");
+        let actor = make_actor("human_operator");
+        let result = route_with_policy("compile.run", &req, &actor, &engine);
+        assert!(result.is_ok());
+        let (target, diag) = result.unwrap();
+        assert_eq!(target, RouteTarget::CompileRun);
+        assert!(diag.is_none());
+    }
+
+    #[test]
+    fn route_with_policy_denies_external_agent_emergency_patch() {
+        let engine = PolicyEngine::default_policy();
+        let req = make_request("patch.submit");
+        let actor = make_actor("external_agent");
+        let result = route_with_policy("patch.submit", &req, &actor, &engine);
+        assert!(result.is_err());
+        let diag = result.unwrap_err();
+        assert_eq!(diag.code, "AUZ-001");
+    }
+
+    #[test]
+    fn route_with_policy_denies_auto_recovery_compile() {
+        let engine = PolicyEngine::default_policy();
+        let req = make_request("compile.run");
+        let actor = make_actor("auto_recovery");
+        let result = route_with_policy("compile.run", &req, &actor, &engine);
+        assert!(result.is_err());
+        let diag = result.unwrap_err();
+        assert_eq!(diag.code, "AUZ-001");
+    }
+
+    #[test]
+    fn route_with_policy_allows_auto_recovery_rollback() {
+        let engine = PolicyEngine::default_policy();
+        let req = make_request("patch.rollback");
+        let actor = make_actor("auto_recovery");
+        let result = route_with_policy("patch.rollback", &req, &actor, &engine);
+        assert!(result.is_ok());
+        let (target, _) = result.unwrap();
+        assert_eq!(target, RouteTarget::PatchRollback);
     }
 }

@@ -5,6 +5,7 @@ use vidodo_ir::{
     RuntimePayload, ShowState, TimingEvent, VisualEvent,
 };
 
+pub mod audio_backend;
 pub mod clock;
 pub mod health_monitor;
 pub mod lookahead;

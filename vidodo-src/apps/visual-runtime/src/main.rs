@@ -6,6 +6,9 @@ use vidodo_ir::{EventRecord, RuntimePayload};
 use vidodo_storage::{ArtifactLayout, discover_repo_root, write_json};
 use vidodo_trace::load_events;
 
+mod visual_backend;
+pub use visual_backend::VisualReferenceBackend;
+
 #[derive(Debug, Clone, Serialize, Deserialize)]
 struct SceneAck {
     event_id: String,
