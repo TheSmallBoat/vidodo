@@ -2,6 +2,8 @@ use std::collections::BTreeMap;
 
 use vidodo_ir::ResourceHubDescriptor;
 
+pub mod persistence;
+
 /// In-memory registry of external resource hubs.
 ///
 /// Supports registration, lookup by hub_id, filtering by resource_kind,

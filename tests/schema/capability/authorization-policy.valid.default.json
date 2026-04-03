@@ -1,0 +1,41 @@
+{
+    "policy_id": "default-policy",
+    "version": "1.0",
+    "default_effect": "deny",
+    "rules": [
+        {
+            "role": "human_operator",
+            "effect": "allow",
+            "capabilities": [
+                "*"
+            ]
+        },
+        {
+            "role": "external_agent",
+            "effect": "allow",
+            "capabilities": [
+                "plan.*",
+                "compile.*",
+                "asset.*"
+            ],
+            "patch_classes": [
+                "param",
+                "local_content"
+            ]
+        },
+        {
+            "role": "auto_recovery",
+            "effect": "allow",
+            "capabilities": [
+                "patch.rollback",
+                "system.degrade"
+            ],
+            "patch_classes": [
+                "emergency"
+            ],
+            "conditions": {
+                "trigger": "health_monitor"
+            }
+        }
+    ]
+}

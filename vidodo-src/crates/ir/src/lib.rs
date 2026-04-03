@@ -1401,6 +1401,172 @@ pub struct DegradeMode {
 }
 
 // ---------------------------------------------------------------------------
+// Phase 3 — BackendAdapter Trait & Executable Types (WSO-01, WSO-02)
+// ---------------------------------------------------------------------------
+
+/// Description returned by [`BackendAdapter::describe_backend`].
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+pub struct BackendDescription {
+    pub plugin_id: String,
+    pub backend_kind: String,
+    pub capabilities: Vec<String>,
+    #[serde(default)]
+    pub topology_types: Vec<String>,
+    #[serde(default)]
+    pub status: String,
+}
+
+/// Topology reference passed to [`BackendAdapter::prepare_backend`].
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[serde(tag = "topology_kind", rename_all = "snake_case")]
+pub enum BackendTopology {
+    /// Visual display topology — flat or spatial multi-view.
+    Visual {
+        topology_ref: String,
+        #[serde(default)]
+        calibration_profile: Option<String>,
+        #[serde(default)]
+        display_endpoints: Vec<String>,
+    },
+    /// Audio output topology — system or spatial speaker matrix.
+    Audio {
+        topology_ref: String,
+        #[serde(default)]
+        calibration_profile: Option<String>,
+        #[serde(default)]
+        speaker_endpoints: Vec<String>,
+    },
+    /// Lighting fixture topology — fixture bus or spatial lighting matrix.
+    Lighting {
+        topology_ref: String,
+        #[serde(default)]
+        calibration_profile: Option<String>,
+        #[serde(default)]
+        fixture_endpoints: Vec<String>,
+    },
+}
+
+/// Channel-specific execution payload consumed by [`BackendAdapter::execute_payload`].
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[serde(tag = "payload_kind", rename_all = "snake_case")]
+pub enum ExecutablePayload {
+    /// Audio execution command — play, stop, crossfade, etc.
+    Audio {
+        layer_id: String,
+        op: String,
+        #[serde(default)]
+        target_asset_id: Option<String>,
+        #[serde(default)]
+        gain_db: Option<f64>,
+        #[serde(default)]
+        duration_beats: Option<u32>,
+        #[serde(default)]
+        route_set_ref: Option<String>,
+        #[serde(default)]
+        speaker_group: Vec<String>,
+    },
+    /// Visual execution command — scene switch, uniform update, etc.
+    Visual {
+        scene_id: String,
+        shader_program: String,
+        #[serde(default)]
+        uniforms: BTreeMap<String, String>,
+        #[serde(default)]
+        duration_beats: Option<u32>,
+        #[serde(default)]
+        blend: Option<String>,
+        #[serde(default)]
+        view_group: Option<String>,
+    },
+    /// Lighting execution command — cue apply, fade, etc.
+    Lighting {
+        cue_set_id: String,
+        source_ref: String,
+        #[serde(default)]
+        fixture_group: Vec<String>,
+        #[serde(default)]
+        intensity: Option<f64>,
+        #[serde(default)]
+        color: Option<[f64; 3]>,
+        #[serde(default)]
+        fade_beats: Option<f64>,
+    },
+}
+
+/// Result of [`BackendAdapter::collect_backend_status`].
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+pub struct BackendStatus {
+    pub plugin_id: String,
+    pub status: String,
+    #[serde(default)]
+    pub latency_ms: Option<f64>,
+    #[serde(default)]
+    pub error_count: Option<u64>,
+    #[serde(default)]
+    pub last_ack_lag_ms: Option<f64>,
+    #[serde(default)]
+    pub detail: Option<String>,
+}
+
+/// Unified backend adapter trait — Doc 30 §4.2 seven-method protocol.
+///
+/// All three backend types (audio, visual, lighting) implement this trait
+/// to maintain a single protocol boundary with the core scheduling system.
+pub trait BackendAdapter {
+    /// Return a description of this backend: kind, capabilities, supported topologies.
+    fn describe_backend(&self) -> BackendDescription;
+
+    /// Prepare the backend for execution with a given topology and calibration.
+    fn prepare_backend(&mut self, topology: &BackendTopology) -> Result<(), String>;
+
+    /// Push the current show state to this backend.
+    fn apply_show_state(&mut self, show_state: &ShowState) -> Result<(), String>;
+
+    /// Execute a channel-specific payload (audio/visual/lighting command).
+    fn execute_payload(&mut self, payload: &ExecutablePayload) -> Result<BackendAck, String>;
+
+    /// Collect the current health/status of this backend.
+    fn collect_backend_status(&self) -> BackendStatus;
+
+    /// Apply a degradation mode (e.g., reduced resolution, mute, blackout).
+    fn apply_degrade_mode(&mut self, mode: &DegradeMode) -> Result<(), String>;
+
+    /// Gracefully shut down this backend, releasing resources.
+    fn shutdown_backend(&mut self) -> Result<(), String>;
+}
+
+// ---------------------------------------------------------------------------
+// Phase 3 — Authorization Policy Types (WSQ-01)
+// ---------------------------------------------------------------------------
+
+/// A single policy rule mapping an actor role to allowed/denied capabilities.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct PolicyRule {
+    pub role: String,
+    pub effect: String,
+    #[serde(default)]
+    pub capabilities: Vec<String>,
+    #[serde(default)]
+    pub patch_classes: Vec<String>,
+    #[serde(default)]
+    pub conditions: BTreeMap<String, String>,
+}
+
+/// Authorization policy — a set of rules evaluated in order.
+///
+/// Covers Doc 08 §4 three actor roles:
+/// - `human_operator`: full access
+/// - `external_agent`: restricted (no emergency patch)
+/// - `auto_recovery`: only degrade/rollback actions
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct AuthorizationPolicy {
+    pub policy_id: String,
+    pub version: String,
+    pub default_effect: String,
+    pub rules: Vec<PolicyRule>,
+}
+
+// ---------------------------------------------------------------------------
 // Tests
 // ---------------------------------------------------------------------------
 
@@ -1596,5 +1762,177 @@ mod tests {
         let json = serde_json::to_string(&mode).unwrap();
         let back: DegradeMode = serde_json::from_str(&json).unwrap();
         assert_eq!(mode, back);
+    }
+
+    // --- Phase 3 serde round-trip tests ---
+
+    #[test]
+    fn backend_topology_visual_serde_round_trip() {
+        let topo = BackendTopology::Visual {
+            topology_ref: String::from("display-wall-left"),
+            calibration_profile: Some(String::from("hdr-calibrated")),
+            display_endpoints: vec![String::from("screen-1"), String::from("screen-2")],
+        };
+        let json = serde_json::to_string(&topo).unwrap();
+        let back: BackendTopology = serde_json::from_str(&json).unwrap();
+        assert_eq!(topo, back);
+    }
+
+    #[test]
+    fn backend_topology_audio_serde_round_trip() {
+        let topo = BackendTopology::Audio {
+            topology_ref: String::from("speaker-matrix-a"),
+            calibration_profile: None,
+            speaker_endpoints: vec![String::from("spk-front-l"), String::from("spk-front-r")],
+        };
+        let json = serde_json::to_string(&topo).unwrap();
+        let back: BackendTopology = serde_json::from_str(&json).unwrap();
+        assert_eq!(topo, back);
+    }
+
+    #[test]
+    fn backend_topology_lighting_serde_round_trip() {
+        let topo = BackendTopology::Lighting {
+            topology_ref: String::from("lighting-grid-a"),
+            calibration_profile: Some(String::from("venue-preset")),
+            fixture_endpoints: vec![String::from("fx-01"), String::from("fx-02")],
+        };
+        let json = serde_json::to_string(&topo).unwrap();
+        let back: BackendTopology = serde_json::from_str(&json).unwrap();
+        assert_eq!(topo, back);
+    }
+
+    #[test]
+    fn executable_payload_audio_serde_round_trip() {
+        let payload = ExecutablePayload::Audio {
+            layer_id: String::from("layer-drums"),
+            op: String::from("play"),
+            target_asset_id: Some(String::from("asset-kick-01")),
+            gain_db: Some(-6.0),
+            duration_beats: Some(4),
+            route_set_ref: None,
+            speaker_group: vec![String::from("front")],
+        };
+        let json = serde_json::to_string(&payload).unwrap();
+        let back: ExecutablePayload = serde_json::from_str(&json).unwrap();
+        assert_eq!(payload, back);
+    }
+
+    #[test]
+    fn executable_payload_visual_serde_round_trip() {
+        let payload = ExecutablePayload::Visual {
+            scene_id: String::from("scene-intro"),
+            shader_program: String::from("glsl/wave.frag"),
+            uniforms: BTreeMap::from([(String::from("u_time"), String::from("0.0"))]),
+            duration_beats: Some(8),
+            blend: Some(String::from("crossfade")),
+            view_group: None,
+        };
+        let json = serde_json::to_string(&payload).unwrap();
+        let back: ExecutablePayload = serde_json::from_str(&json).unwrap();
+        assert_eq!(payload, back);
+    }
+
+    #[test]
+    fn executable_payload_lighting_serde_round_trip() {
+        let payload = ExecutablePayload::Lighting {
+            cue_set_id: String::from("cue-drop-a"),
+            source_ref: String::from("scene/drop"),
+            fixture_group: vec![String::from("fx-01")],
+            intensity: Some(0.9),
+            color: Some([1.0, 0.0, 0.5]),
+            fade_beats: Some(2.0),
+        };
+        let json = serde_json::to_string(&payload).unwrap();
+        let back: ExecutablePayload = serde_json::from_str(&json).unwrap();
+        assert_eq!(payload, back);
+    }
+
+    #[test]
+    fn backend_description_serde_round_trip() {
+        let desc = BackendDescription {
+            plugin_id: String::from("visual-led-wall"),
+            backend_kind: String::from("visual"),
+            capabilities: vec![String::from("scene_switch")],
+            topology_types: vec![String::from("display_topology")],
+            status: String::from("ready"),
+        };
+        let json = serde_json::to_string(&desc).unwrap();
+        let back: BackendDescription = serde_json::from_str(&json).unwrap();
+        assert_eq!(desc, back);
+    }
+
+    #[test]
+    fn backend_status_serde_round_trip() {
+        let status = BackendStatus {
+            plugin_id: String::from("audio-system"),
+            status: String::from("healthy"),
+            latency_ms: Some(5.2),
+            error_count: Some(0),
+            last_ack_lag_ms: None,
+            detail: None,
+        };
+        let json = serde_json::to_string(&status).unwrap();
+        let back: BackendStatus = serde_json::from_str(&json).unwrap();
+        assert_eq!(status, back);
+    }
+
+    #[test]
+    fn authorization_policy_serde_round_trip() {
+        let policy = AuthorizationPolicy {
+            policy_id: String::from("default-policy"),
+            version: String::from("1.0"),
+            default_effect: String::from("deny"),
+            rules: vec![
+                PolicyRule {
+                    role: String::from("human_operator"),
+                    effect: String::from("allow"),
+                    capabilities: vec![String::from("*")],
+                    patch_classes: vec![],
+                    conditions: BTreeMap::new(),
+                },
+                PolicyRule {
+                    role: String::from("external_agent"),
+                    effect: String::from("allow"),
+                    capabilities: vec![
+                        String::from("plan.*"),
+                        String::from("compile.*"),
+                        String::from("asset.*"),
+                    ],
+                    patch_classes: vec![String::from("param"), String::from("local_content")],
+                    conditions: BTreeMap::new(),
+                },
+                PolicyRule {
+                    role: String::from("auto_recovery"),
+                    effect: String::from("allow"),
+                    capabilities: vec![
+                        String::from("patch.rollback"),
+                        String::from("system.degrade"),
+                    ],
+                    patch_classes: vec![String::from("emergency")],
+                    conditions: BTreeMap::from([(
+                        String::from("trigger"),
+                        String::from("health_monitor"),
+                    )]),
+                },
+            ],
+        };
+        let json = serde_json::to_string(&policy).unwrap();
+        let back: AuthorizationPolicy = serde_json::from_str(&json).unwrap();
+        assert_eq!(policy, back);
+    }
+
+    #[test]
+    fn policy_rule_serde_round_trip() {
+        let rule = PolicyRule {
+            role: String::from("external_agent"),
+            effect: String::from("deny"),
+            capabilities: vec![String::from("patch.submit")],
+            patch_classes: vec![String::from("emergency"), String::from("structural")],
+            conditions: BTreeMap::from([(String::from("require_approval"), String::from("true"))]),
+        };
+        let json = serde_json::to_string(&rule).unwrap();
+        let back: PolicyRule = serde_json::from_str(&json).unwrap();
+        assert_eq!(rule, back);
     }
 }

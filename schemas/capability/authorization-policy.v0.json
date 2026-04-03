@@ -1,0 +1,86 @@
+{
+    "$schema": "https://json-schema.org/draft/2020-12/schema",
+    "$id": "av.capability.authorization-policy.v0",
+    "title": "Authorization Policy",
+    "description": "A set of authorization rules mapping actor roles to allowed/denied capabilities and patch classes. Covers Doc 08 §4 three actor roles: human_operator, external_agent, auto_recovery.",
+    "type": "object",
+    "required": [
+        "policy_id",
+        "version",
+        "default_effect",
+        "rules"
+    ],
+    "properties": {
+        "policy_id": {
+            "type": "string"
+        },
+        "version": {
+            "type": "string"
+        },
+        "default_effect": {
+            "type": "string",
+            "enum": [
+                "allow",
+                "deny"
+            ]
+        },
+        "rules": {
+            "type": "array",
+            "items": {
+                "$ref": "#/$defs/PolicyRule"
+            },
+            "minItems": 1
+        }
+    },
+    "additionalProperties": false,
+    "$defs": {
+        "PolicyRule": {
+            "type": "object",
+            "required": [
+                "role",
+                "effect"
+            ],
+            "properties": {
+                "role": {
+                    "type": "string",
+                    "description": "Actor role this rule applies to (e.g. human_operator, external_agent, auto_recovery)"
+                },
+                "effect": {
+                    "type": "string",
+                    "enum": [
+                        "allow",
+                        "deny"
+                    ]
+                },
+                "capabilities": {
+                    "type": "array",
+                    "items": {
+                        "type": "string"
+                    },
+                    "description": "Capability patterns this rule applies to. Supports wildcard '*'."
+                },
+                "patch_classes": {
+                    "type": "array",
+                    "items": {
+                        "type": "string",
+                        "enum": [
+                            "param",
+                            "local_content",
+                            "structural",
+                            "emergency"
+                        ]
+                    },
+                    "description": "Patch classification this rule applies to"
+                },
+                "conditions": {
+                    "type": "object",
+                    "additionalProperties": {
+                        "type": "string"
+                    },
+                    "description": "Additional conditions for rule evaluation"
+                }
+            },
+            "additionalProperties": false
+        }
+    }
+}

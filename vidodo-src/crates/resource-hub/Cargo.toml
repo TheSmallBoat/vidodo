@@ -8,3 +8,5 @@ repository.workspace = true
 
 [dependencies]
 vidodo-ir = { path = "../ir" }
+rusqlite = { version = "0.37", features = ["bundled"] }
+serde_json.workspace = true
