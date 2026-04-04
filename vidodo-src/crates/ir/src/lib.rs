@@ -935,6 +935,65 @@ pub struct DegradeEvent {
     pub fallback_action: Option<String>,
 }
 
+// ---------------------------------------------------------------------------
+// External control events (MIDI / OSC)
+// ---------------------------------------------------------------------------
+
+/// A MIDI Control Change message.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct MidiCC {
+    pub channel: u8,
+    pub cc: u8,
+    pub value: u8,
+}
+
+/// A MIDI Note On / Off message.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct MidiNote {
+    pub channel: u8,
+    pub note: u8,
+    pub velocity: u8,
+    pub on: bool,
+}
+
+/// An Open Sound Control message.
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+pub struct OscMessage {
+    pub address: String,
+    pub args: Vec<serde_json::Value>,
+}
+
+/// External control event from hardware or virtual controller.
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[serde(tag = "control_type", rename_all = "snake_case")]
+pub enum ExternalControlEvent {
+    MidiCc { source_id: String, midi_cc: MidiCC },
+    MidiNote { source_id: String, midi_note: MidiNote },
+    OscMessage { source_id: String, osc_message: OscMessage },
+}
+
+/// Binding record for an external control source.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct ControlBinding {
+    pub source_id: String,
+    pub protocol: String,
+}
+
+/// Trait for adapters that bridge external MIDI/OSC controllers into the runtime.
+///
+/// Implementors manage source bindings, poll for new events each tick, and
+/// expose the list of currently active bindings.
+pub trait ExternalControlAdapter {
+    /// Register a control source.
+    fn bind_source(&mut self, source_id: &str, protocol: &str) -> Result<(), String>;
+    /// Unregister a control source.
+    fn unbind_source(&mut self, source_id: &str) -> Result<(), String>;
+    /// Poll for pending control events since the last call.
+    fn poll_events(&mut self) -> Vec<ExternalControlEvent>;
+    /// List currently active bindings.
+    fn list_bindings(&self) -> Vec<ControlBinding>;
+}
+
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 #[serde(tag = "payload_type", content = "payload", rename_all = "snake_case")]
 pub enum RuntimePayload {
@@ -944,6 +1003,90 @@ pub enum RuntimePayload {
     Patch(PatchEvent),
     Lighting(LightingEvent),
     Degrade(DegradeEvent),
+    ExternalControl(ExternalControlEvent),
+}
+
+// ---------------------------------------------------------------------------
+// Show templates and scene packs
+// ---------------------------------------------------------------------------
+
+/// A section within a show template.
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+pub struct TemplateSectionRef {
+    pub section_id: String,
+    pub order: u32,
+    pub label: String,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub duration_bars: Option<u32>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub scene_pack_ref: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub energy_target: Option<f64>,
+}
+
+/// Default parameters for a show template.
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+pub struct TemplateDefaultParams {
+    pub tempo_bpm: f64,
+    pub time_signature: [u32; 2],
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub style_tags: Vec<String>,
+}
+
+/// Reusable show template describing section layout and default parameters.
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+pub struct ShowTemplate {
+    #[serde(rename = "type")]
+    pub template_type: String,
+    pub template_id: String,
+    pub name: String,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub description: Option<String>,
+    pub mode: String,
+    pub sections: Vec<TemplateSectionRef>,
+    pub default_params: TemplateDefaultParams,
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub scene_pack_refs: Vec<String>,
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub tags: Vec<String>,
+}
+
+/// Transition strategy for scenes within a pack.
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+pub struct TransitionStrategy {
+    pub default_mode: String,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub crossfade_beats: Option<f64>,
+}
+
+/// A single scene descriptor within a scene pack.
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+pub struct SceneDescriptor {
+    pub scene_id: String,
+    pub label: String,
+    pub asset_refs: Vec<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub visual_program_ref: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub energy_range: Option<[f64; 2]>,
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub tags: Vec<String>,
+}
+
+/// Bundled scene descriptors with asset references and transition strategy.
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+pub struct ScenePack {
+    #[serde(rename = "type")]
+    pub pack_type: String,
+    pub pack_id: String,
+    pub name: String,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub description: Option<String>,
+    pub scenes: Vec<SceneDescriptor>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub transition_strategy: Option<TransitionStrategy>,
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub tags: Vec<String>,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
@@ -1049,6 +1192,53 @@ pub struct ShowState {
     #[serde(default)]
     pub active_audio_layers: Vec<String>,
     pub active_visual_scene: String,
+}
+
+impl ShowState {
+    /// Build a minimal ShowState from a compiled revision for testing.
+    pub fn default_for_test(compiled: &CompiledRevision) -> Self {
+        Self {
+            show_id: compiled.show_id.clone(),
+            revision: compiled.revision,
+            mode: compiled.set_plan.mode.clone(),
+            time: MusicalTime::at_bar(1, 1, String::from("intro"), 128.0),
+            semantic: ShowSemantic {
+                energy: 0.5,
+                density: 0.5,
+                tension: 0.5,
+                brightness: 0.5,
+                motion: 0.5,
+                intent: String::from("test"),
+            },
+            transition: ShowTransition {
+                state: String::from("steady"),
+                from_scene: String::from("scene_intro"),
+                to_scene: String::from("scene_intro"),
+                window_open: true,
+            },
+            visual_output: OutputBinding {
+                backend_id: String::from("fake_visual"),
+                topology_ref: String::from("flat-display-a"),
+                calibration_profile: String::from("default"),
+                active_group: String::from("scene_intro"),
+            },
+            audio_output: OutputBinding {
+                backend_id: String::from("fake_audio"),
+                topology_ref: String::from("stereo-main"),
+                calibration_profile: String::from("default"),
+                active_group: String::from("stereo-main"),
+            },
+            patch: ShowPatchState {
+                allowed: true,
+                scope: String::from("next_phrase_boundary"),
+                locked_sections: Vec::new(),
+            },
+            adapter_plugins: BTreeMap::new(),
+            resource_hubs: BTreeMap::new(),
+            active_audio_layers: Vec::new(),
+            active_visual_scene: String::from("scene_intro"),
+        }
+    }
 }
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
@@ -1508,6 +1698,28 @@ pub struct BackendStatus {
     pub detail: Option<String>,
 }
 
+/// Structured result from an analysis adapter.
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+pub struct AnalysisResult {
+    pub analyzer_id: String,
+    pub asset_id: String,
+    pub status: String,
+    pub metrics: BTreeMap<String, serde_json::Value>,
+}
+
+/// Trait for third-party analysis adapters (audio, visual, etc.).
+///
+/// Analysis adapters inspect assets and return structured results that can
+/// be stored in the analysis cache.
+pub trait AnalysisAdapter {
+    /// Return the unique identifier for this analyzer.
+    fn analyzer_id(&self) -> &str;
+    /// Check whether the analyzer is ready.
+    fn ready(&self) -> bool;
+    /// Run analysis on an asset identified by `asset_id` at the given `path`.
+    fn analyze(&self, asset_id: &str, path: &std::path::Path) -> Result<AnalysisResult, String>;
+}
+
 /// Unified backend adapter trait — Doc 30 §4.2 seven-method protocol.
 ///
 /// All three backend types (audio, visual, lighting) implement this trait
@@ -1564,6 +1776,50 @@ pub struct AuthorizationPolicy {
     pub version: String,
     pub default_effect: String,
     pub rules: Vec<PolicyRule>,
+}
+
+// ---------------------------------------------------------------------------
+// Phase 4 — Contract Hardening: Rollback Checkpoint
+// ---------------------------------------------------------------------------
+
+/// State of a resource handle during patch rollback lifecycle.
+///
+/// Per Doc 08 §4, resource handles must be explicitly tracked through
+/// rollback to ensure old revision resources are released and new/warming
+/// resources are managed deterministically.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub enum ResourceHandleState {
+    /// Resource is actively used by the current revision.
+    Active,
+    /// Resource has been released after rollback.
+    Released,
+    /// Resource is pre-warming for a pending revision.
+    Warming,
+}
+
+/// A snapshot of resource handle states at rollback time.
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+pub struct ResourceHandleSnapshot {
+    pub resource_id: String,
+    pub state: ResourceHandleState,
+    #[serde(default)]
+    pub backend_kind: Option<String>,
+}
+
+/// Checkpoint captured during patch rollback, per Doc 08 §4 rollback strategy.
+///
+/// Preserves enough state to verify that resources were released, backends
+/// were re-aligned, and show state was restored to a consistent baseline.
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+pub struct RollbackCheckpoint {
+    pub patch_id: String,
+    pub base_revision: u64,
+    pub rollback_target_revision: u64,
+    pub resource_handles: Vec<ResourceHandleSnapshot>,
+    pub backend_snapshots: Vec<BackendHealthSnapshot>,
+    pub show_state_snapshot: ShowState,
+    pub reason: String,
+    pub timestamp: String,
 }
 
 // ---------------------------------------------------------------------------
@@ -1934,5 +2190,230 @@ mod tests {
         let json = serde_json::to_string(&rule).unwrap();
         let back: PolicyRule = serde_json::from_str(&json).unwrap();
         assert_eq!(rule, back);
+    }
+
+    #[test]
+    fn resource_handle_state_serde_round_trip() {
+        for state in [
+            ResourceHandleState::Active,
+            ResourceHandleState::Released,
+            ResourceHandleState::Warming,
+        ] {
+            let json = serde_json::to_string(&state).unwrap();
+            let back: ResourceHandleState = serde_json::from_str(&json).unwrap();
+            assert_eq!(state, back);
+        }
+    }
+
+    #[test]
+    fn rollback_checkpoint_serde_round_trip() {
+        let checkpoint = RollbackCheckpoint {
+            patch_id: String::from("patch-001"),
+            base_revision: 2,
+            rollback_target_revision: 1,
+            resource_handles: vec![
+                ResourceHandleSnapshot {
+                    resource_id: String::from("audio-stem-a"),
+                    state: ResourceHandleState::Released,
+                    backend_kind: Some(String::from("audio_output")),
+                },
+                ResourceHandleSnapshot {
+                    resource_id: String::from("visual-scene-b"),
+                    state: ResourceHandleState::Active,
+                    backend_kind: Some(String::from("visual_output")),
+                },
+            ],
+            backend_snapshots: vec![BackendHealthSnapshot {
+                backend_ref: String::from("audio-ref"),
+                plugin_ref: String::from("audio-plugin-01"),
+                status: String::from("healthy"),
+                timestamp: String::from("2026-04-06T12:00:00Z"),
+                latency_ms: Some(2.5),
+                error_count: Some(0),
+                last_ack_lag_ms: None,
+                degrade_reason: None,
+            }],
+            show_state_snapshot: ShowState {
+                show_id: String::from("show-001"),
+                revision: 1,
+                mode: String::from("live"),
+                time: MusicalTime {
+                    beat: 1.0,
+                    bar: 1,
+                    beat_in_bar: 1.0,
+                    phrase: 1,
+                    section: String::from("intro"),
+                    tempo: 120.0,
+                    time_signature: [4, 4],
+                },
+                semantic: ShowSemantic {
+                    energy: 0.5,
+                    density: 0.3,
+                    tension: 0.2,
+                    brightness: 0.7,
+                    motion: 0.1,
+                    intent: String::from("ambient"),
+                },
+                transition: ShowTransition {
+                    state: String::from("idle"),
+                    from_scene: String::new(),
+                    to_scene: String::new(),
+                    window_open: false,
+                },
+                visual_output: OutputBinding {
+                    backend_id: String::from("vis-ref"),
+                    topology_ref: String::from("topo-v"),
+                    calibration_profile: String::new(),
+                    active_group: String::from("main"),
+                },
+                audio_output: OutputBinding {
+                    backend_id: String::from("aud-ref"),
+                    topology_ref: String::from("topo-a"),
+                    calibration_profile: String::new(),
+                    active_group: String::from("main"),
+                },
+                patch: ShowPatchState {
+                    allowed: true,
+                    scope: String::from("global"),
+                    locked_sections: vec![],
+                },
+                adapter_plugins: BTreeMap::new(),
+                resource_hubs: BTreeMap::new(),
+                active_audio_layers: vec![],
+                active_visual_scene: String::from("intro"),
+            },
+            reason: String::from("anomaly: xrun threshold exceeded"),
+            timestamp: String::from("2026-04-06T12:00:00Z"),
+        };
+        let json = serde_json::to_string(&checkpoint).unwrap();
+        let back: RollbackCheckpoint = serde_json::from_str(&json).unwrap();
+        assert_eq!(checkpoint, back);
+    }
+
+    #[test]
+    fn external_control_midi_cc_serde_round_trip() {
+        let event = ExternalControlEvent::MidiCc {
+            source_id: String::from("nanokontrol-1"),
+            midi_cc: MidiCC { channel: 0, cc: 74, value: 100 },
+        };
+        let json = serde_json::to_string(&event).unwrap();
+        let back: ExternalControlEvent = serde_json::from_str(&json).unwrap();
+        assert_eq!(event, back);
+
+        let payload = RuntimePayload::ExternalControl(event.clone());
+        let json2 = serde_json::to_string(&payload).unwrap();
+        let back2: RuntimePayload = serde_json::from_str(&json2).unwrap();
+        assert_eq!(payload, back2);
+    }
+
+    #[test]
+    fn external_control_osc_serde_round_trip() {
+        let event = ExternalControlEvent::OscMessage {
+            source_id: String::from("touchosc-ipad"),
+            osc_message: OscMessage {
+                address: String::from("/scene/tempo"),
+                args: vec![
+                    serde_json::Value::from(128.0),
+                    serde_json::Value::from("half-time"),
+                    serde_json::Value::from(true),
+                ],
+            },
+        };
+        let json = serde_json::to_string(&event).unwrap();
+        let back: ExternalControlEvent = serde_json::from_str(&json).unwrap();
+        assert_eq!(event, back);
+    }
+
+    #[test]
+    fn show_template_serde_round_trip() {
+        let template = ShowTemplate {
+            template_type: String::from("show_template"),
+            template_id: String::from("tpl-edm-01"),
+            name: String::from("EDM Festival Set"),
+            description: Some(String::from("Four-section energy arc")),
+            mode: String::from("live"),
+            sections: vec![
+                TemplateSectionRef {
+                    section_id: String::from("sec-intro"),
+                    order: 0,
+                    label: String::from("Intro"),
+                    duration_bars: Some(16),
+                    scene_pack_ref: Some(String::from("pack-ambient-01")),
+                    energy_target: Some(0.3),
+                },
+                TemplateSectionRef {
+                    section_id: String::from("sec-drop"),
+                    order: 1,
+                    label: String::from("Drop"),
+                    duration_bars: Some(32),
+                    scene_pack_ref: None,
+                    energy_target: Some(1.0),
+                },
+            ],
+            default_params: TemplateDefaultParams {
+                tempo_bpm: 128.0,
+                time_signature: [4, 4],
+                style_tags: vec![String::from("edm")],
+            },
+            scene_pack_refs: vec![String::from("pack-ambient-01")],
+            tags: vec![String::from("festival")],
+        };
+        let json = serde_json::to_string(&template).unwrap();
+        let back: ShowTemplate = serde_json::from_str(&json).unwrap();
+        assert_eq!(template, back);
+    }
+
+    #[test]
+    fn scene_pack_serde_round_trip() {
+        let pack = ScenePack {
+            pack_type: String::from("scene_pack"),
+            pack_id: String::from("pack-ambient-01"),
+            name: String::from("Ambient Visuals"),
+            description: Some(String::from("Low-energy scenes")),
+            scenes: vec![
+                SceneDescriptor {
+                    scene_id: String::from("scene-fog"),
+                    label: String::from("Fog Drift"),
+                    asset_refs: vec![String::from("visual.program.fog-drift")],
+                    visual_program_ref: Some(String::from("shader-fog-drift-v1")),
+                    energy_range: Some([0.0, 0.4]),
+                    tags: vec![String::from("ambient")],
+                },
+                SceneDescriptor {
+                    scene_id: String::from("scene-star"),
+                    label: String::from("Starfield"),
+                    asset_refs: vec![String::from("visual.program.starfield")],
+                    visual_program_ref: None,
+                    energy_range: None,
+                    tags: vec![],
+                },
+            ],
+            transition_strategy: Some(TransitionStrategy {
+                default_mode: String::from("crossfade"),
+                crossfade_beats: Some(4.0),
+            }),
+            tags: vec![String::from("ambient")],
+        };
+        let json = serde_json::to_string(&pack).unwrap();
+        let back: ScenePack = serde_json::from_str(&json).unwrap();
+        assert_eq!(pack, back);
+    }
+
+    #[test]
+    fn scene_descriptor_serde_round_trip() {
+        let scene = SceneDescriptor {
+            scene_id: String::from("scene-laser"),
+            label: String::from("Laser Grid"),
+            asset_refs: vec![
+                String::from("visual.program.laser-grid"),
+                String::from("audio.loop.bass-a"),
+            ],
+            visual_program_ref: Some(String::from("shader-laser-v2")),
+            energy_range: Some([0.7, 1.0]),
+            tags: vec![String::from("high-energy"), String::from("laser")],
+        };
+        let json = serde_json::to_string(&scene).unwrap();
+        let back: SceneDescriptor = serde_json::from_str(&json).unwrap();
+        assert_eq!(scene, back);
     }
 }

@@ -1,0 +1,9 @@
+{
+    "control_type": "midi_cc",
+    "source_id": "nanokontrol-1",
+    "midi_cc": {
+        "channel": 0,
+        "cc": 200,
+        "value": 100
+    }
+}

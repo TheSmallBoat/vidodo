@@ -1,0 +1,8 @@
+{
+    "control_type": "osc_message",
+    "source_id": "touchosc-ipad",
+    "osc_message": {
+        "address": "no-leading-slash",
+        "args": []
+    }
+}

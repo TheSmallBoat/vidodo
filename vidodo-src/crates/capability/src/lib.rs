@@ -96,6 +96,14 @@ pub enum RouteTarget {
     HubRegister,
     HubResolve,
     HubStatus,
+    ControlBind,
+    ControlUnbind,
+    ControlList,
+    ControlStatus,
+    TemplateList,
+    TemplateLoad,
+    SceneList,
+    SceneActivate,
 }
 
 /// Route a capability identifier to a typed target.
@@ -130,6 +138,14 @@ pub fn route(capability: &str) -> Result<RouteTarget, Box<Diagnostic>> {
         "hub.register" => Ok(RouteTarget::HubRegister),
         "hub.resolve" => Ok(RouteTarget::HubResolve),
         "hub.status" => Ok(RouteTarget::HubStatus),
+        "control.bind" => Ok(RouteTarget::ControlBind),
+        "control.unbind" => Ok(RouteTarget::ControlUnbind),
+        "control.list" => Ok(RouteTarget::ControlList),
+        "control.status" => Ok(RouteTarget::ControlStatus),
+        "template.list" => Ok(RouteTarget::TemplateList),
+        "template.load" => Ok(RouteTarget::TemplateLoad),
+        "scene.list" => Ok(RouteTarget::SceneList),
+        "scene.activate" => Ok(RouteTarget::SceneActivate),
         _ => Err(Box::new(Diagnostic::error(
             "CAP-001",
             format!("unsupported capability: {capability}"),
@@ -208,6 +224,14 @@ pub fn mcp_tool_mappings() -> Vec<McpToolMapping> {
         mcp_map("hub.register", "hub.register", false, false),
         mcp_map("hub.resolve", "hub.resolve", true, false),
         mcp_map("hub.status", "hub.status", true, false),
+        mcp_map("control.bind", "control.bind", false, false),
+        mcp_map("control.unbind", "control.unbind", false, false),
+        mcp_map("control.list", "control.list", true, false),
+        mcp_map("control.status", "control.status", true, false),
+        mcp_map("template.list", "template.list", true, false),
+        mcp_map("template.load", "template.load", true, false),
+        mcp_map("scene.list", "scene.list", true, false),
+        mcp_map("scene.activate", "scene.activate", false, false),
     ]
 }
 
@@ -244,6 +268,14 @@ pub fn resolve_mcp_tool(tool_name: &str) -> Option<&'static str> {
         "hub.register" => Some("hub.register"),
         "hub.resolve" => Some("hub.resolve"),
         "hub.status" => Some("hub.status"),
+        "control.bind" => Some("control.bind"),
+        "control.unbind" => Some("control.unbind"),
+        "control.list" => Some("control.list"),
+        "control.status" => Some("control.status"),
+        "template.list" => Some("template.list"),
+        "template.load" => Some("template.load"),
+        "scene.list" => Some("scene.list"),
+        "scene.activate" => Some("scene.activate"),
         _ => None,
     }
 }
@@ -501,6 +533,38 @@ fn capability_schemas(capability: &str) -> (String, String) {
             r#"{"type":"object","properties":{"hub_id":{"type":"string"}},"required":["hub_id"]}"#.into(),
             r#"{"type":"object","properties":{"hub_id":{"type":"string"},"descriptor":{"type":"object"},"status":{"type":"string"}}}"#.into(),
         ),
+        "control.bind" => (
+            r#"{"type":"object","properties":{"source_id":{"type":"string"},"protocol":{"type":"string"}},"required":["source_id","protocol"]}"#.into(),
+            r#"{"type":"object","properties":{"source_id":{"type":"string"},"status":{"type":"string"}}}"#.into(),
+        ),
+        "control.unbind" => (
+            r#"{"type":"object","properties":{"source_id":{"type":"string"}},"required":["source_id"]}"#.into(),
+            r#"{"type":"object","properties":{"source_id":{"type":"string"},"status":{"type":"string"}}}"#.into(),
+        ),
+        "control.list" => (
+            r#"{"type":"object","properties":{}}"#.into(),
+            r#"{"type":"object","properties":{"count":{"type":"integer"},"bindings":{"type":"array"}}}"#.into(),
+        ),
+        "control.status" => (
+            r#"{"type":"object","properties":{"source_id":{"type":"string"}},"required":["source_id"]}"#.into(),
+            r#"{"type":"object","properties":{"source_id":{"type":"string"},"protocol":{"type":"string"},"status":{"type":"string"}}}"#.into(),
+        ),
+        "template.list" => (
+            r#"{"type":"object","properties":{}}"#.into(),
+            r#"{"type":"object","properties":{"count":{"type":"integer"},"templates":{"type":"array"}}}"#.into(),
+        ),
+        "template.load" => (
+            r#"{"type":"object","properties":{"template_id":{"type":"string"}},"required":["template_id"]}"#.into(),
+            r#"{"type":"object","properties":{"template_id":{"type":"string"},"template":{"type":"object"}}}"#.into(),
+        ),
+        "scene.list" => (
+            r#"{"type":"object","properties":{}}"#.into(),
+            r#"{"type":"object","properties":{"count":{"type":"integer"},"scenes":{"type":"array"}}}"#.into(),
+        ),
+        "scene.activate" => (
+            r#"{"type":"object","properties":{"scene_id":{"type":"string"}},"required":["scene_id"]}"#.into(),
+            r#"{"type":"object","properties":{"scene_id":{"type":"string"},"status":{"type":"string"}}}"#.into(),
+        ),
         _ => (String::new(), String::new()),
     }
 }
@@ -644,6 +708,50 @@ fn builtin_descriptors() -> Vec<CapabilityDescriptor> {
             &["operator"],
             "Query a single resource hub status",
         ),
+        cap(
+            "control.bind",
+            "sync",
+            "conditional",
+            &["operator"],
+            "Bind an external control source",
+        ),
+        cap(
+            "control.unbind",
+            "sync",
+            "conditional",
+            &["operator"],
+            "Unbind an external control source",
+        ),
+        cap("control.list", "sync", "idempotent", &["operator"], "List active control bindings"),
+        cap(
+            "control.status",
+            "sync",
+            "idempotent",
+            &["operator"],
+            "Query a control binding status",
+        ),
+        cap(
+            "template.list",
+            "sync",
+            "idempotent",
+            &["operator", "planner"],
+            "List registered show templates",
+        ),
+        cap(
+            "template.load",
+            "sync",
+            "idempotent",
+            &["operator", "planner"],
+            "Load a show template by id",
+        ),
+        cap(
+            "scene.list",
+            "sync",
+            "idempotent",
+            &["operator", "planner"],
+            "List active scenes in runtime",
+        ),
+        cap("scene.activate", "sync", "conditional", &["operator"], "Activate a scene in runtime"),
     ]
 }
 
@@ -658,7 +766,7 @@ mod tests {
     #[test]
     fn default_registry_has_29_capabilities() {
         let registry = CapabilityRegistry::default();
-        assert_eq!(registry.len(), 29);
+        assert_eq!(registry.len(), 37);
     }
 
     #[test]
@@ -770,14 +878,14 @@ mod tests {
         let json = serde_json::to_string(registry.list()).expect("serialize");
         let deserialized: Vec<CapabilityDescriptor> =
             serde_json::from_str(&json).expect("deserialize");
-        assert_eq!(deserialized.len(), 29);
+        assert_eq!(deserialized.len(), 37);
         assert_eq!(deserialized[0].capability, "asset.ingest");
     }
 
     #[test]
     fn mcp_tool_mappings_has_29_entries() {
         let mappings = mcp_tool_mappings();
-        assert_eq!(mappings.len(), 29);
+        assert_eq!(mappings.len(), 37);
         // Every mapping's capability should exist in the registry
         let registry = CapabilityRegistry::default();
         for m in &mappings {

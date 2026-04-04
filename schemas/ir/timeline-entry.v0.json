@@ -44,7 +44,9 @@
             "type": "string"
         },
         "effective_window": {
-            "type": "object"
+            "type": "object",
+            "x-stability": "experimental",
+            "minProperties": 0
         },
         "scheduler": {
             "type": "object",
@@ -68,7 +70,9 @@
             "additionalProperties": false
         },
         "guards": {
-            "type": "object"
+            "type": "object",
+            "x-stability": "experimental",
+            "minProperties": 0
         }
     },
     "additionalProperties": false

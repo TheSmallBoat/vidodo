@@ -1,0 +1,156 @@
+{
+    "$schema": "https://json-schema.org/draft/2020-12/schema",
+    "$id": "av.runtime.external-control-event.v0",
+    "title": "External Control Event",
+    "description": "Runtime event for external control messages (MIDI CC, MIDI Note, OSC).",
+    "type": "object",
+    "required": [
+        "control_type",
+        "source_id"
+    ],
+    "properties": {
+        "control_type": {
+            "type": "string",
+            "enum": [
+                "midi_cc",
+                "midi_note",
+                "osc_message"
+            ]
+        },
+        "source_id": {
+            "type": "string",
+            "description": "Identifier of the external control source (device or virtual port)."
+        },
+        "midi_cc": {
+            "type": "object",
+            "required": [
+                "channel",
+                "cc",
+                "value"
+            ],
+            "properties": {
+                "channel": {
+                    "type": "integer",
+                    "minimum": 0,
+                    "maximum": 15
+                },
+                "cc": {
+                    "type": "integer",
+                    "minimum": 0,
+                    "maximum": 127
+                },
+                "value": {
+                    "type": "integer",
+                    "minimum": 0,
+                    "maximum": 127
+                }
+            },
+            "additionalProperties": false
+        },
+        "midi_note": {
+            "type": "object",
+            "required": [
+                "channel",
+                "note",
+                "velocity",
+                "on"
+            ],
+            "properties": {
+                "channel": {
+                    "type": "integer",
+                    "minimum": 0,
+                    "maximum": 15
+                },
+                "note": {
+                    "type": "integer",
+                    "minimum": 0,
+                    "maximum": 127
+                },
+                "velocity": {
+                    "type": "integer",
+                    "minimum": 0,
+                    "maximum": 127
+                },
+                "on": {
+                    "type": "boolean"
+                }
+            },
+            "additionalProperties": false
+        },
+        "osc_message": {
+            "type": "object",
+            "required": [
+                "address",
+                "args"
+            ],
+            "properties": {
+                "address": {
+                    "type": "string",
+                    "pattern": "^/"
+                },
+                "args": {
+                    "type": "array",
+                    "items": {
+                        "oneOf": [
+                            {
+                                "type": "number"
+                            },
+                            {
+                                "type": "string"
+                            },
+                            {
+                                "type": "boolean"
+                            }
+                        ]
+                    }
+                }
+            },
+            "additionalProperties": false
+        }
+    },
+    "additionalProperties": false,
+    "allOf": [
+        {
+            "if": {
+                "properties": {
+                    "control_type": {
+                        "const": "midi_cc"
+                    }
+                }
+            },
+            "then": {
+                "required": [
+                    "midi_cc"
+                ]
+            }
+        },
+        {
+            "if": {
+                "properties": {
+                    "control_type": {
+                        "const": "midi_note"
+                    }
+                }
+            },
+            "then": {
+                "required": [
+                    "midi_note"
+                ]
+            }
+        },
+        {
+            "if": {
+                "properties": {
+                    "control_type": {
+                        "const": "osc_message"
+                    }
+                }
+            },
+            "then": {
+                "required": [
+                    "osc_message"
+                ]
+            }
+        }
+    ]
+}

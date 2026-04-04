@@ -1,17 +1,20 @@
 use serde::{Deserialize, Serialize};
 use vidodo_ir::{
     AudioEvent, BackendAck, BackendHealthSnapshot, CompiledRevision, DegradeEvent, EventRecord,
-    LightingEvent, MusicalTime, PatchDecision, PatchEvent, ResourceSample, RunSummary,
-    RuntimePayload, ShowState, TimingEvent, VisualEvent,
+    ExternalControlAdapter, ExternalControlEvent, LightingEvent, MusicalTime, PatchDecision,
+    PatchEvent, ResourceSample, RunSummary, RuntimePayload, ShowState, TimingEvent, VisualEvent,
 };
 
 pub mod audio_backend;
 pub mod clock;
+pub mod fault_injection;
 pub mod health_monitor;
 pub mod lighting_backend;
 pub mod lookahead;
 pub mod null_backend;
+pub mod null_control_adapter;
 pub mod reference_backend;
+pub mod scene_manager;
 pub mod show_state;
 pub mod visual_backend;
 
@@ -432,11 +435,127 @@ pub fn simulate_run_with_backend(
 
 // ShowState construction logic lives in show_state module.
 
+/// Run simulation with fault injection.
+///
+/// Evaluates the injector at each section's start bar.  If faults are
+/// produced, the injected snapshots are merged with the backend's own
+/// snapshots and fed through [`health_monitor::degrade_decision`] to
+/// produce `DegradeEvent` records mid-run.  The scheduler continues
+/// executing after any injected fault — it never panics.
+pub fn simulate_run_with_fault_injector(
+    compiled: &CompiledRevision,
+    run_id: &str,
+    backend: &dyn BackendClient,
+    injector: &dyn fault_injection::FaultInjector,
+) -> ScheduledRun {
+    let mut base = simulate_run_with_backend(compiled, run_id, backend);
+
+    // Walk sections and evaluate the fault injector at each bar.
+    let thresholds = health_monitor::HealthThresholds::default();
+    let mut degrade_idx = base.degrade_events.len();
+    for section in &compiled.structure_ir.sections {
+        let bar = section.span.start_bar;
+        let injected = injector.inject(bar);
+        if injected.is_empty() {
+            continue;
+        }
+        // Merge real + injected snapshots
+        let mut all = backend.health_snapshots();
+        all.extend(injected);
+        let decision = health_monitor::degrade_decision(&all, &thresholds);
+        if decision.should_degrade {
+            for mode in &decision.modes {
+                let evt_id = format!("evt-fault-degrade-{:04}", degrade_idx + 1);
+                base.degrade_events.push(EventRecord {
+                    event_id: evt_id,
+                    show_id: compiled.show_id.clone(),
+                    revision: compiled.revision,
+                    kind: String::from("degrade.activated"),
+                    phase: String::from("executed"),
+                    source: String::from("health_monitor"),
+                    musical_time: MusicalTime::at_bar(bar, 1, section.section_id.clone(), 128.0),
+                    scheduler_time_ms: (bar as u64) * 1_000,
+                    wallclock_time_ms: (bar as u64) * 1_000,
+                    causation_id: mode.mode.clone(),
+                    payload: RuntimePayload::Degrade(DegradeEvent {
+                        degrade_id: mode.mode.clone(),
+                        mode: mode.mode.clone(),
+                        reason: mode.reason.clone(),
+                        affected_backends: mode.affected_backends.clone(),
+                        fallback_action: mode.fallback_action.clone(),
+                    }),
+                    ack: None,
+                });
+                degrade_idx += 1;
+            }
+        }
+    }
+
+    base.summary.event_count = base.events.len();
+    base
+}
+
+/// Run simulation with an external control adapter.
+///
+/// Polls the adapter once per section tick. Each external control event is
+/// mapped to a `RuntimePayload::ExternalControl` event record and appended
+/// to the event stream (and consequently the trace).
+pub fn simulate_run_with_controls(
+    compiled: &CompiledRevision,
+    run_id: &str,
+    backend: &dyn BackendClient,
+    control: &mut dyn ExternalControlAdapter,
+) -> ScheduledRun {
+    let mut base = simulate_run_with_backend(compiled, run_id, backend);
+
+    // Poll external control events and append them to the event stream.
+    let control_events = control.poll_events();
+    let base_time_ms = base.events.last().map(|e| e.scheduler_time_ms).unwrap_or(0) + 1;
+    let section = &base.final_show_state.time.section;
+    for (i, ctrl_evt) in control_events.into_iter().enumerate() {
+        let event_id = format!("evt-ctrl-{:04}", i + 1);
+        let kind = match &ctrl_evt {
+            ExternalControlEvent::MidiCc { .. } => "external_control.midi_cc",
+            ExternalControlEvent::MidiNote { .. } => "external_control.midi_note",
+            ExternalControlEvent::OscMessage { .. } => "external_control.osc_message",
+        };
+        base.events.push(EventRecord {
+            event_id,
+            show_id: compiled.show_id.clone(),
+            revision: compiled.revision,
+            kind: kind.to_string(),
+            phase: String::from("executed"),
+            source: String::from("external_control"),
+            musical_time: MusicalTime::at_bar(
+                base.final_show_state.time.bar,
+                1,
+                section.clone(),
+                128.0,
+            ),
+            scheduler_time_ms: base_time_ms + i as u64,
+            wallclock_time_ms: base_time_ms + i as u64,
+            causation_id: String::from("control_adapter"),
+            payload: RuntimePayload::ExternalControl(ctrl_evt),
+            ack: None,
+        });
+    }
+
+    // Update event count in summary
+    base.summary.event_count = base.events.len();
+    base
+}
+
 #[cfg(test)]
 mod tests {
-    use super::{BackendClient, FakeBackendClient, simulate_run, simulate_run_with_backend};
+    use super::{
+        BackendClient, FakeBackendClient, simulate_run, simulate_run_with_backend,
+        simulate_run_with_controls, simulate_run_with_fault_injector,
+    };
     use vidodo_compiler::compile_plan;
-    use vidodo_ir::{AudioEvent, BackendAck, PlanBundle, RuntimePayload, VisualEvent};
+    use vidodo_ir::{
+        AudioEvent, BackendAck, ExternalControlEvent, MidiCC, OscMessage, PlanBundle,
+        RuntimePayload, VisualEvent,
+    };
     use vidodo_patch_manager::apply_patch;
 
     #[test]
@@ -614,6 +733,184 @@ mod tests {
         assert!(
             run.degrade_events.is_empty(),
             "healthy FakeBackendClient should produce no degrade events"
+        );
+    }
+
+    // --- WST-03: Scheduler consumes external control events ---
+
+    #[test]
+    fn midi_cc_control_event_appears_in_run() {
+        let compiled =
+            compile_plan(&PlanBundle::minimal("show-phase0")).expect("plan should compile");
+        let mut adapter = crate::null_control_adapter::NullControlAdapter::new();
+        adapter.inject(vec![ExternalControlEvent::MidiCc {
+            source_id: String::from("midi-1"),
+            midi_cc: MidiCC { channel: 1, cc: 7, value: 100 },
+        }]);
+        let run = simulate_run_with_controls(
+            &compiled,
+            "run-ctrl-midi",
+            &FakeBackendClient,
+            &mut adapter,
+        );
+        let ctrl_events: Vec<_> =
+            run.events.iter().filter(|e| e.kind.starts_with("external_control.")).collect();
+        assert_eq!(ctrl_events.len(), 1);
+        assert_eq!(ctrl_events[0].kind, "external_control.midi_cc");
+        assert_eq!(ctrl_events[0].source, "external_control");
+    }
+
+    #[test]
+    fn osc_control_event_appears_in_run() {
+        let compiled =
+            compile_plan(&PlanBundle::minimal("show-phase0")).expect("plan should compile");
+        let mut adapter = crate::null_control_adapter::NullControlAdapter::new();
+        adapter.inject(vec![ExternalControlEvent::OscMessage {
+            source_id: String::from("osc-1"),
+            osc_message: OscMessage {
+                address: String::from("/fader/1"),
+                args: vec![serde_json::json!(0.75)],
+            },
+        }]);
+        let run =
+            simulate_run_with_controls(&compiled, "run-ctrl-osc", &FakeBackendClient, &mut adapter);
+        let ctrl_events: Vec<_> =
+            run.events.iter().filter(|e| e.kind.starts_with("external_control.")).collect();
+        assert_eq!(ctrl_events.len(), 1);
+        assert_eq!(ctrl_events[0].kind, "external_control.osc_message");
+    }
+
+    #[test]
+    fn no_control_events_without_adapter_input() {
+        let compiled =
+            compile_plan(&PlanBundle::minimal("show-phase0")).expect("plan should compile");
+        let mut adapter = crate::null_control_adapter::NullControlAdapter::new();
+        let run = simulate_run_with_controls(
+            &compiled,
+            "run-ctrl-empty",
+            &FakeBackendClient,
+            &mut adapter,
+        );
+        let ctrl_events: Vec<_> =
+            run.events.iter().filter(|e| e.kind.starts_with("external_control.")).collect();
+        assert!(ctrl_events.is_empty());
+    }
+
+    #[test]
+    fn multiple_control_events_all_tracked() {
+        let compiled =
+            compile_plan(&PlanBundle::minimal("show-phase0")).expect("plan should compile");
+        let mut adapter = crate::null_control_adapter::NullControlAdapter::new();
+        adapter.inject(vec![
+            ExternalControlEvent::MidiCc {
+                source_id: String::from("midi-1"),
+                midi_cc: MidiCC { channel: 1, cc: 7, value: 50 },
+            },
+            ExternalControlEvent::MidiCc {
+                source_id: String::from("midi-1"),
+                midi_cc: MidiCC { channel: 1, cc: 1, value: 127 },
+            },
+            ExternalControlEvent::OscMessage {
+                source_id: String::from("osc-1"),
+                osc_message: OscMessage {
+                    address: String::from("/tempo"),
+                    args: vec![serde_json::json!(130)],
+                },
+            },
+        ]);
+        let run = simulate_run_with_controls(
+            &compiled,
+            "run-ctrl-multi",
+            &FakeBackendClient,
+            &mut adapter,
+        );
+        let ctrl_events: Vec<_> =
+            run.events.iter().filter(|e| e.kind.starts_with("external_control.")).collect();
+        assert_eq!(ctrl_events.len(), 3);
+    }
+
+    // --- WSW-02: Fault injection tests ---
+
+    #[test]
+    fn fault_at_bar_triggers_degrade_event() {
+        let compiled =
+            compile_plan(&PlanBundle::minimal("show-phase0")).expect("plan should compile");
+        let injector = crate::fault_injection::FailAtBarInjector::new(
+            compiled.structure_ir.sections[0].span.start_bar,
+            "audio_backend_1",
+        );
+        let run = simulate_run_with_fault_injector(
+            &compiled,
+            "run-fault-bar",
+            &FakeBackendClient,
+            &injector,
+        );
+        assert!(!run.degrade_events.is_empty(), "expected degrade events from fault injection");
+        let degrade = &run.degrade_events[0];
+        assert_eq!(degrade.kind, "degrade.activated");
+        assert_eq!(degrade.source, "health_monitor");
+        if let RuntimePayload::Degrade(ref d) = degrade.payload {
+            assert!(d.affected_backends.contains(&String::from("audio_backend_1")));
+        } else {
+            panic!("expected Degrade payload");
+        }
+    }
+
+    #[test]
+    fn null_injector_produces_no_degrade_events() {
+        let compiled =
+            compile_plan(&PlanBundle::minimal("show-phase0")).expect("plan should compile");
+        let injector = crate::fault_injection::NullFaultInjector;
+        let run = simulate_run_with_fault_injector(
+            &compiled,
+            "run-null-injector",
+            &FakeBackendClient,
+            &injector,
+        );
+        assert!(
+            run.degrade_events.is_empty(),
+            "NullFaultInjector should produce no degrade events"
+        );
+    }
+
+    #[test]
+    fn scheduler_continues_after_fault_injection() {
+        let compiled =
+            compile_plan(&PlanBundle::minimal("show-phase0")).expect("plan should compile");
+        // Put fault at the first section bar
+        let injector = crate::fault_injection::FailAtBarInjector::new(
+            compiled.structure_ir.sections[0].span.start_bar,
+            "visual_backend_1",
+        );
+        let run = simulate_run_with_fault_injector(
+            &compiled,
+            "run-fault-continue",
+            &FakeBackendClient,
+            &injector,
+        );
+        // Scheduler must still produce all normal events (no panic, no short-circuit)
+        let non_degrade: Vec<_> = run.events.iter().collect();
+        assert!(!non_degrade.is_empty(), "scheduler must still produce events after fault");
+        assert!(run.summary.event_count > 0, "summary event_count must be positive after fault");
+    }
+
+    #[test]
+    fn fault_degrade_event_has_correct_bar_in_musical_time() {
+        let compiled =
+            compile_plan(&PlanBundle::minimal("show-phase0")).expect("plan should compile");
+        let target_bar = compiled.structure_ir.sections[0].span.start_bar;
+        let injector =
+            crate::fault_injection::FailAtBarInjector::new(target_bar, "audio_backend_1");
+        let run = simulate_run_with_fault_injector(
+            &compiled,
+            "run-fault-bar-time",
+            &FakeBackendClient,
+            &injector,
+        );
+        let degrade = &run.degrade_events[0];
+        assert_eq!(
+            degrade.musical_time.bar, target_bar,
+            "degrade event bar should match trigger bar"
         );
     }
 }

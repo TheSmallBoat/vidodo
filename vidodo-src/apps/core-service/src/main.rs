@@ -207,6 +207,14 @@ fn dispatch(
         RouteTarget::HubRegister => dispatch_hub_register(state, capability, request_id, body),
         RouteTarget::HubResolve => dispatch_hub_resolve(state, capability, request_id, body),
         RouteTarget::HubStatus => dispatch_hub_status(state, capability, request_id, body),
+        RouteTarget::ControlBind => dispatch_control_bind(state, capability, request_id, body),
+        RouteTarget::ControlUnbind => dispatch_control_unbind(state, capability, request_id, body),
+        RouteTarget::ControlList => dispatch_control_list(state, capability, request_id, body),
+        RouteTarget::ControlStatus => dispatch_control_status(state, capability, request_id, body),
+        RouteTarget::TemplateList => dispatch_template_list(state, capability, request_id, body),
+        RouteTarget::TemplateLoad => dispatch_template_load(state, capability, request_id, body),
+        RouteTarget::SceneList => dispatch_scene_list(state, capability, request_id, body),
+        RouteTarget::SceneActivate => dispatch_scene_activate(state, capability, request_id, body),
     }
 }
 
@@ -1026,6 +1034,99 @@ fn dispatch_hub_status(
         request_id,
         json!({"hub_id": hub_id, "descriptor": descriptor, "status": descriptor.status}),
     ))
+}
+
+fn dispatch_control_bind(
+    _state: &AppState,
+    capability: &str,
+    request_id: &str,
+    body: &Value,
+) -> Result<Value, Value> {
+    let source_id = require_str(body, "source_id")?;
+    let protocol = require_str(body, "protocol")?;
+    Ok(ok_envelope(
+        capability,
+        request_id,
+        json!({"source_id": source_id, "protocol": protocol, "status": "bound"}),
+    ))
+}
+
+fn dispatch_control_unbind(
+    _state: &AppState,
+    capability: &str,
+    request_id: &str,
+    body: &Value,
+) -> Result<Value, Value> {
+    let source_id = require_str(body, "source_id")?;
+    Ok(ok_envelope(capability, request_id, json!({"source_id": source_id, "status": "unbound"})))
+}
+
+fn dispatch_control_list(
+    _state: &AppState,
+    capability: &str,
+    request_id: &str,
+    _body: &Value,
+) -> Result<Value, Value> {
+    let bindings: Vec<Value> = vec![];
+    Ok(ok_envelope(capability, request_id, json!({"count": bindings.len(), "bindings": bindings})))
+}
+
+fn dispatch_control_status(
+    _state: &AppState,
+    capability: &str,
+    request_id: &str,
+    body: &Value,
+) -> Result<Value, Value> {
+    let source_id = require_str(body, "source_id")?;
+    Ok(ok_envelope(
+        capability,
+        request_id,
+        json!({"source_id": source_id, "protocol": "unknown", "status": "not_bound"}),
+    ))
+}
+
+fn dispatch_template_list(
+    _state: &AppState,
+    capability: &str,
+    request_id: &str,
+    _body: &Value,
+) -> Result<Value, Value> {
+    let templates: Vec<Value> = vec![];
+    Ok(ok_envelope(
+        capability,
+        request_id,
+        json!({"count": templates.len(), "templates": templates}),
+    ))
+}
+
+fn dispatch_template_load(
+    _state: &AppState,
+    capability: &str,
+    request_id: &str,
+    body: &Value,
+) -> Result<Value, Value> {
+    let template_id = require_str(body, "template_id")?;
+    Ok(ok_envelope(capability, request_id, json!({"template_id": template_id, "template": {}})))
+}
+
+fn dispatch_scene_list(
+    _state: &AppState,
+    capability: &str,
+    request_id: &str,
+    _body: &Value,
+) -> Result<Value, Value> {
+    let scenes: Vec<Value> = vec![];
+    Ok(ok_envelope(capability, request_id, json!({"count": scenes.len(), "scenes": scenes})))
+}
+
+fn dispatch_scene_activate(
+    _state: &AppState,
+    capability: &str,
+    request_id: &str,
+    body: &Value,
+) -> Result<Value, Value> {
+    let scene_id = require_str(body, "scene_id")?;
+    Ok(ok_envelope(capability, request_id, json!({"scene_id": scene_id, "status": "activated"})))
 }
 
 // ---------------------------------------------------------------------------

@@ -85,6 +85,50 @@ def collect_fixtures(arguments: list[str]) -> list[Path]:
     return sorted(FIXTURE_ROOT.rglob("*.json"))
 
 
+def check_stability_annotations() -> list[str]:
+    """Verify that bare object fields in IR schemas carry x-stability annotations."""
+    failures: list[str] = []
+    ir_dir = SCHEMA_ROOT / "ir"
+    if not ir_dir.is_dir():
+        return failures
+
+    for schema_path in sorted(ir_dir.glob("*.json")):
+        schema = load_json(schema_path)
+        _check_bare_objects(
+            schema,
+            schema_path.relative_to(REPO_ROOT),
+            "$",
+            failures,
+        )
+    return failures
+
+
+def _check_bare_objects(
+    node: object,
+    file_label: Path,
+    path: str,
+    failures: list[str],
+) -> None:
+    if not isinstance(node, dict):
+        return
+    if node.get("type") == "object" and "properties" not in node:
+        if "x-stability" not in node:
+            failures.append(
+                f"{file_label} {path}: bare object missing x-stability annotation"
+            )
+    for key, value in node.items():
+        if key.startswith("$"):
+            continue
+        child_path = f"{path}.{key}" if path else key
+        if isinstance(value, dict):
+            _check_bare_objects(value, file_label, child_path, failures)
+        elif isinstance(value, list):
+            for index, item in enumerate(value):
+                _check_bare_objects(
+                    item, file_label, f"{child_path}[{index}]", failures
+                )
+
+
 def main(arguments: list[str]) -> int:
     fixtures = collect_fixtures(arguments)
     if not fixtures:
@@ -95,6 +139,9 @@ def main(arguments: list[str]) -> int:
     for fixture in fixtures:
         failures.extend(validate_fixture(fixture))
 
+    stability_failures = check_stability_annotations()
+    failures.extend(stability_failures)
+
     if failures:
         print("schema validation failed:", file=sys.stderr)
         for failure in failures:
@@ -102,8 +149,32 @@ def main(arguments: list[str]) -> int:
         return 1
 
     print(f"validated {len(fixtures)} schema fixtures")
+    if stability_failures == []:
+        print("x-stability annotations: ok")
     return 0
 
 
 if __name__ == "__main__":
     raise SystemExit(main(sys.argv[1:]))
+
+
+def test_check_bare_objects_detects_missing_stability():
+    """Unit test: bare object without x-stability is flagged."""
+    schema_with_annotation = {
+        "type": "object",
+        "properties": {
+            "open_field": {"type": "object", "x-stability": "experimental", "minProperties": 0}
+        },
+    }
+    failures_ok: list[str] = []
+    _check_bare_objects(schema_with_annotation, Path("test.json"), "$", failures_ok)
+    assert failures_ok == [], f"expected no failures but got {failures_ok}"
+
+    schema_without_annotation = {
+        "type": "object",
+        "properties": {"open_field": {"type": "object"}},
+    }
+    failures_bad: list[str] = []
+    _check_bare_objects(schema_without_annotation, Path("test.json"), "$", failures_bad)
+    assert len(failures_bad) == 1, f"expected 1 failure but got {failures_bad}"
+    assert "x-stability" in failures_bad[0]

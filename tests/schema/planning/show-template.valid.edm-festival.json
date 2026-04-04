@@ -1,0 +1,58 @@
+{
+    "type": "show_template",
+    "template_id": "tpl-edm-festival-01",
+    "name": "EDM Festival Set",
+    "description": "A four-section festival set template with build-drop energy arc.",
+    "mode": "live",
+    "sections": [
+        {
+            "section_id": "sec-intro",
+            "order": 0,
+            "label": "Intro",
+            "duration_bars": 16,
+            "scene_pack_ref": "pack-ambient-01",
+            "energy_target": 0.3
+        },
+        {
+            "section_id": "sec-build",
+            "order": 1,
+            "label": "Build",
+            "duration_bars": 32,
+            "energy_target": 0.7
+        },
+        {
+            "section_id": "sec-drop",
+            "order": 2,
+            "label": "Drop",
+            "duration_bars": 32,
+            "scene_pack_ref": "pack-laser-01",
+            "energy_target": 1.0
+        },
+        {
+            "section_id": "sec-outro",
+            "order": 3,
+            "label": "Outro",
+            "duration_bars": 16,
+            "energy_target": 0.2
+        }
+    ],
+    "default_params": {
+        "tempo_bpm": 128,
+        "time_signature": [
+            4,
+            4
+        ],
+        "style_tags": [
+            "edm",
+            "festival"
+        ]
+    },
+    "scene_pack_refs": [
+        "pack-ambient-01",
+        "pack-laser-01"
+    ],
+    "tags": [
+        "festival",
+        "edm"
+    ]
+}

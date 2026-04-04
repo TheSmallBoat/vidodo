@@ -1,0 +1,103 @@
+{
+    "$schema": "https://json-schema.org/draft/2020-12/schema",
+    "$id": "av.planning.scene-pack.v0",
+    "title": "Scene Pack",
+    "description": "Bundled scene descriptors with asset references and transition strategy.",
+    "type": "object",
+    "required": [
+        "type",
+        "pack_id",
+        "name",
+        "scenes"
+    ],
+    "properties": {
+        "type": {
+            "type": "string",
+            "const": "scene_pack"
+        },
+        "pack_id": {
+            "type": "string"
+        },
+        "name": {
+            "type": "string",
+            "minLength": 1
+        },
+        "description": {
+            "type": "string"
+        },
+        "scenes": {
+            "type": "array",
+            "minItems": 1,
+            "items": {
+                "type": "object",
+                "required": [
+                    "scene_id",
+                    "label",
+                    "asset_refs"
+                ],
+                "properties": {
+                    "scene_id": {
+                        "type": "string"
+                    },
+                    "label": {
+                        "type": "string"
+                    },
+                    "asset_refs": {
+                        "type": "array",
+                        "items": {
+                            "type": "string"
+                        }
+                    },
+                    "visual_program_ref": {
+                        "type": "string"
+                    },
+                    "energy_range": {
+                        "type": "array",
+                        "items": {
+                            "type": "number",
+                            "minimum": 0,
+                            "maximum": 1
+                        },
+                        "minItems": 2,
+                        "maxItems": 2
+                    },
+                    "tags": {
+                        "type": "array",
+                        "items": {
+                            "type": "string"
+                        }
+                    }
+                },
+                "additionalProperties": false
+            }
+        },
+        "transition_strategy": {
+            "type": "object",
+            "required": [
+                "default_mode"
+            ],
+            "properties": {
+                "default_mode": {
+                    "type": "string",
+                    "enum": [
+                        "cut",
+                        "crossfade",
+                        "dissolve"
+                    ]
+                },
+                "crossfade_beats": {
+                    "type": "number",
+                    "minimum": 0
+                }
+            },
+            "additionalProperties": false
+        },
+        "tags": {
+            "type": "array",
+            "items": {
+                "type": "string"
+            }
+        }
+    },
+    "additionalProperties": false
+}

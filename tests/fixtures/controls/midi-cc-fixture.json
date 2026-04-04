@@ -1,0 +1,25 @@
+{
+    "type": "external_control_event",
+    "events": [
+        {
+            "source_id": "midi-controller-1",
+            "protocol": "midi",
+            "payload": {
+                "event_type": "MidiCC",
+                "channel": 0,
+                "cc": 1,
+                "value": 64
+            }
+        },
+        {
+            "source_id": "midi-controller-1",
+            "protocol": "midi",
+            "payload": {
+                "event_type": "MidiCC",
+                "channel": 0,
+                "cc": 7,
+                "value": 127
+            }
+        }
+    ]
+}

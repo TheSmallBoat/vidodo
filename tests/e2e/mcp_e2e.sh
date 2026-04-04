@@ -71,7 +71,7 @@ check "initialize returns serverInfo.name" \
 # --- 2. tools/list ---
 resp3=$(get_response 3)
 tool_count=$(echo "$resp3" | python3 -c "import sys,json; print(len(json.load(sys.stdin)['result']['tools']))")
-check "tools/list returns 21 tools" test "$tool_count" = "21"
+check "tools/list returns 37 tools" test "$tool_count" = "37"
 
 # Verify each tool has name, description, inputSchema
 all_have_fields=$(echo "$resp3" | python3 -c "
@@ -98,7 +98,7 @@ check "system.capabilities isError=false" \
 
 cap_envelope=$(echo "$resp4" | python3 -c "import sys,json; r=json.load(sys.stdin)['result']; print(r['content'][0]['text'])")
 cap_count=$(echo "$cap_envelope" | python3 -c "import sys,json; print(json.load(sys.stdin)['data']['count'])")
-check "system.capabilities returns 21 capabilities" test "$cap_count" = "21"
+check "system.capabilities returns 37 capabilities" test "$cap_count" = "37"
 
 # Verify schema fields present
 schemas_present=$(echo "$cap_envelope" | python3 -c "

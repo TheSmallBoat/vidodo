@@ -1,0 +1,14 @@
+{
+    "type": "show_template",
+    "template_id": "tpl-bad",
+    "name": "Bad Template",
+    "mode": "live",
+    "sections": [],
+    "default_params": {
+        "tempo_bpm": 128,
+        "time_signature": [
+            4,
+            4
+        ]
+    }
+}

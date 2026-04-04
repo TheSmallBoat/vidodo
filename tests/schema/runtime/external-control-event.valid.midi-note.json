@@ -1,0 +1,10 @@
+{
+    "control_type": "midi_note",
+    "source_id": "launchpad-pro-mk3",
+    "midi_note": {
+        "channel": 9,
+        "note": 60,
+        "velocity": 127,
+        "on": true
+    }
+}

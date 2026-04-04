@@ -48,7 +48,9 @@
                         "type": "string"
                     },
                     "resource_hint": {
-                        "type": "object"
+                        "type": "object",
+                        "x-stability": "experimental",
+                        "minProperties": 0
                     },
                     "output_backend_hint": {
                         "type": "string"

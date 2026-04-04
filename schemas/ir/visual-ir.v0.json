@@ -28,10 +28,14 @@
                         "type": "string"
                     },
                     "uniform_set": {
-                        "type": "object"
+                        "type": "object",
+                        "x-stability": "experimental",
+                        "minProperties": 0
                     },
                     "camera_state": {
-                        "type": "object"
+                        "type": "object",
+                        "x-stability": "experimental",
+                        "minProperties": 0
                     },
                     "output_backend": {
                         "type": "string"

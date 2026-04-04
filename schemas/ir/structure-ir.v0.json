@@ -40,13 +40,19 @@
                         "minimum": 0
                     },
                     "span": {
-                        "type": "object"
+                        "type": "object",
+                        "x-stability": "experimental",
+                        "minProperties": 0
                     },
                     "targets": {
-                        "type": "object"
+                        "type": "object",
+                        "x-stability": "experimental",
+                        "minProperties": 0
                     },
                     "locks": {
-                        "type": "object"
+                        "type": "object",
+                        "x-stability": "experimental",
+                        "minProperties": 0
                     }
                 },
                 "additionalProperties": false
@@ -55,7 +61,9 @@
         "transitions": {
             "type": "array",
             "items": {
-                "type": "object"
+                "type": "object",
+                "x-stability": "experimental",
+                "minProperties": 0
             }
         }
     },

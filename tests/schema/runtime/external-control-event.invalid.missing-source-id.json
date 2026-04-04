@@ -1,0 +1,8 @@
+{
+    "control_type": "midi_cc",
+    "midi_cc": {
+        "channel": 0,
+        "cc": 74,
+        "value": 100
+    }
+}

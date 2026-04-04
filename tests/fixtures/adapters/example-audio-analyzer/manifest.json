@@ -1,0 +1,17 @@
+{
+    "plugin_id": "example-audio-analyzer",
+    "plugin_kind": "audio_analyzer",
+    "backend_kind": "analysis",
+    "version": "0.1.0",
+    "capabilities": [
+        "beat_track",
+        "spectral_analysis"
+    ],
+    "target_topology_types": [],
+    "health_contract": {
+        "reports_ack": false,
+        "reports_status": true,
+        "supports_degrade_mode": false
+    },
+    "status": "ready"
+}

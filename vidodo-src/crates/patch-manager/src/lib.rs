@@ -1,6 +1,7 @@
 use vidodo_ir::{
-    CompiledRevision, Diagnostic, LivePatchProposal, PatchDecision, PatchScope, TimelineEntry,
-    TimelineScheduler,
+    BackendHealthSnapshot, CompiledRevision, Diagnostic, LivePatchProposal, PatchDecision,
+    PatchScope, ResourceHandleSnapshot, ResourceHandleState, RollbackCheckpoint, ShowState,
+    TimelineEntry, TimelineScheduler,
 };
 
 pub fn check_patch(revision: &CompiledRevision, proposal: &LivePatchProposal) -> Vec<Diagnostic> {
@@ -266,11 +267,63 @@ fn rollback_patch_with_reason(
     })
 }
 
+/// Perform a full rollback with checkpoint capture.
+///
+/// 1. Produces a [`PatchDecision`] (via [`rollback_patch`]).
+/// 2. Marks all resource handles from the patched revision as `Released`.
+/// 3. Builds a restored [`ShowState`] snapshot for the fallback revision.
+/// 4. Packages everything into a [`RollbackCheckpoint`] for trace persistence.
+///
+/// The caller should write the checkpoint to the trace bundle.
+pub fn rollback_with_checkpoint(
+    patched_revision: &CompiledRevision,
+    _base_revision: &CompiledRevision,
+    patch_id: &str,
+    reason: &str,
+    backend_snapshots: &[BackendHealthSnapshot],
+    restored_show_state: &ShowState,
+    timestamp: &str,
+) -> Result<(PatchDecision, RollbackCheckpoint), Box<Diagnostic>> {
+    let decision = rollback_patch_with_reason(patched_revision, patch_id, reason)?;
+
+    // Build resource handle snapshots: patched-revision resources → Released
+    let resource_handles = build_released_handles(patched_revision);
+
+    let checkpoint = RollbackCheckpoint {
+        patch_id: patch_id.to_string(),
+        base_revision: patched_revision.revision,
+        rollback_target_revision: decision.fallback_revision,
+        resource_handles,
+        backend_snapshots: backend_snapshots.to_vec(),
+        show_state_snapshot: restored_show_state.clone(),
+        reason: reason.to_string(),
+        timestamp: timestamp.to_string(),
+    };
+
+    Ok((decision, checkpoint))
+}
+
+/// Build resource handle snapshots marking each audio asset in the revision
+/// as [`ResourceHandleState::Released`].
+fn build_released_handles(revision: &CompiledRevision) -> Vec<ResourceHandleSnapshot> {
+    revision
+        .asset_records
+        .iter()
+        .map(|asset| ResourceHandleSnapshot {
+            resource_id: asset.asset_id.clone(),
+            state: ResourceHandleState::Released,
+            backend_kind: Some(String::from("audio")),
+        })
+        .collect()
+}
+
 #[cfg(test)]
 mod tests {
-    use super::{apply_patch, check_patch, deferred_rollback, rollback_patch};
+    use super::{
+        apply_patch, check_patch, deferred_rollback, rollback_patch, rollback_with_checkpoint,
+    };
     use vidodo_compiler::compile_plan;
-    use vidodo_ir::{LivePatchProposal, PatchChange, PatchScope, PlanBundle};
+    use vidodo_ir::{LivePatchProposal, PatchChange, PatchScope, PlanBundle, ResourceHandleState};
 
     fn minimal_proposal(patch_id: &str, base_revision: u64) -> LivePatchProposal {
         LivePatchProposal {
@@ -402,6 +455,87 @@ mod tests {
         let result = deferred_rollback(&compiled, "no-such-patch", "anomaly");
         assert!(result.is_err());
         assert_eq!(result.unwrap_err().code, "PAT-010");
+    }
+
+    // --- WSS-04: rollback_with_checkpoint ---
+
+    fn make_base_and_patched() -> (vidodo_ir::CompiledRevision, vidodo_ir::CompiledRevision) {
+        let base = compile_plan(&PlanBundle::minimal("show-phase0")).expect("compile");
+        let proposal = minimal_proposal("patch-phase0-pad-swap", 1);
+        let patched = apply_patch(&base, &proposal).expect("apply");
+        (base, patched)
+    }
+
+    #[test]
+    fn rollback_checkpoint_produces_decision_and_checkpoint() {
+        let (base, patched) = make_base_and_patched();
+        let show_state = vidodo_ir::ShowState::default_for_test(&base);
+        let (decision, checkpoint) = rollback_with_checkpoint(
+            &patched,
+            &base,
+            "patch-phase0-pad-swap",
+            "manual",
+            &[],
+            &show_state,
+            "2026-04-04T00:00:00Z",
+        )
+        .expect("should succeed");
+        assert_eq!(decision.decision, "rolled_back");
+        assert_eq!(checkpoint.patch_id, "patch-phase0-pad-swap");
+        assert_eq!(checkpoint.rollback_target_revision, 1);
+    }
+
+    #[test]
+    fn rollback_checkpoint_marks_resources_released() {
+        let (base, patched) = make_base_and_patched();
+        let show_state = vidodo_ir::ShowState::default_for_test(&base);
+        let (_, checkpoint) = rollback_with_checkpoint(
+            &patched,
+            &base,
+            "patch-phase0-pad-swap",
+            "gpu overload",
+            &[],
+            &show_state,
+            "2026-04-04T00:00:00Z",
+        )
+        .expect("should succeed");
+        assert!(!checkpoint.resource_handles.is_empty());
+        assert!(
+            checkpoint.resource_handles.iter().all(|rh| rh.state == ResourceHandleState::Released)
+        );
+    }
+
+    #[test]
+    fn rollback_checkpoint_preserves_show_state_snapshot() {
+        let (base, patched) = make_base_and_patched();
+        let show_state = vidodo_ir::ShowState::default_for_test(&base);
+        let (_, checkpoint) = rollback_with_checkpoint(
+            &patched,
+            &base,
+            "patch-phase0-pad-swap",
+            "restore",
+            &[],
+            &show_state,
+            "2026-04-04T00:00:00Z",
+        )
+        .expect("should succeed");
+        assert_eq!(checkpoint.show_state_snapshot.revision, base.revision);
+    }
+
+    #[test]
+    fn rollback_checkpoint_unknown_patch_fails() {
+        let (base, patched) = make_base_and_patched();
+        let show_state = vidodo_ir::ShowState::default_for_test(&base);
+        let result = rollback_with_checkpoint(
+            &patched,
+            &base,
+            "no-such-patch",
+            "oops",
+            &[],
+            &show_state,
+            "2026-04-04T00:00:00Z",
+        );
+        assert!(result.is_err());
     }
 
     // --- WSJ-03: Lighting patch check path ---

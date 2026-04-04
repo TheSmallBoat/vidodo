@@ -25,16 +25,24 @@
             "type": "string"
         },
         "locator": {
-            "type": "object"
+            "type": "object",
+            "x-stability": "experimental",
+            "minProperties": 0
         },
         "format": {
-            "type": "object"
+            "type": "object",
+            "x-stability": "experimental",
+            "minProperties": 0
         },
         "analysis": {
-            "type": "object"
+            "type": "object",
+            "x-stability": "experimental",
+            "minProperties": 0
         },
         "capabilities": {
-            "type": "object"
+            "type": "object",
+            "x-stability": "experimental",
+            "minProperties": 0
         }
     },
     "additionalProperties": false

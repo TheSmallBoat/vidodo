@@ -1,0 +1,12 @@
+{
+    "control_type": "osc_message",
+    "source_id": "touchosc-ipad",
+    "osc_message": {
+        "address": "/scene/tempo",
+        "args": [
+            128.0,
+            "half-time",
+            true
+        ]
+    }
+}

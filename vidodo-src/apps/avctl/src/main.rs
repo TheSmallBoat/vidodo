@@ -70,6 +70,9 @@ fn run() -> Result<(), ExitCode> {
         "system" => handle_system(&context, &args[1..]),
         "adapter" => handle_adapter(&context, &args[1..]),
         "hub" => handle_hub(&context, &args[1..]),
+        "control" => handle_control(&context, &args[1..]),
+        "template" => handle_template(&context, &args[1..]),
+        "scene" => handle_scene(&context, &args[1..]),
         _ => {
             print_usage();
             Err(ExitCode::from(2))
@@ -1267,6 +1270,155 @@ fn handle_hub(context: &CommandContext, args: &[String]) -> Result<(), ExitCode>
             "hub",
             "req-hub",
             "usage: avctl hub <register|resolve|status> [flags]",
+        )),
+    }
+}
+
+fn handle_control(_context: &CommandContext, args: &[String]) -> Result<(), ExitCode> {
+    match args {
+        [command, rest @ ..] if command == "bind" => {
+            let capability = "control.bind";
+            let request_id = "req-control-bind";
+            let source_id = required_flag(rest, "--source-id")
+                .map_err(|message| emit_error(capability, request_id, "CLI-400", message))?;
+            let protocol = required_flag(rest, "--protocol")
+                .map_err(|message| emit_error(capability, request_id, "CLI-401", message))?;
+            print_response(
+                capability,
+                request_id,
+                "ok",
+                json!({"source_id": source_id, "protocol": protocol, "status": "bound"}),
+                vec![],
+                vec![],
+                vec![],
+            )
+        }
+        [command, rest @ ..] if command == "unbind" => {
+            let capability = "control.unbind";
+            let request_id = "req-control-unbind";
+            let source_id = required_flag(rest, "--source-id")
+                .map_err(|message| emit_error(capability, request_id, "CLI-410", message))?;
+            print_response(
+                capability,
+                request_id,
+                "ok",
+                json!({"source_id": source_id, "status": "unbound"}),
+                vec![],
+                vec![],
+                vec![],
+            )
+        }
+        [command, ..] if command == "list" => {
+            let capability = "control.list";
+            let request_id = "req-control-list";
+            let bindings: Vec<serde_json::Value> = vec![];
+            print_response(
+                capability,
+                request_id,
+                "ok",
+                json!({"count": bindings.len(), "bindings": bindings}),
+                vec![],
+                vec![],
+                vec![],
+            )
+        }
+        [command, rest @ ..] if command == "status" => {
+            let capability = "control.status";
+            let request_id = "req-control-status";
+            let source_id = required_flag(rest, "--source-id")
+                .map_err(|message| emit_error(capability, request_id, "CLI-420", message))?;
+            print_response(
+                capability,
+                request_id,
+                "ok",
+                json!({"source_id": source_id, "protocol": "unknown", "status": "not_bound"}),
+                vec![],
+                vec![],
+                vec![],
+            )
+        }
+        _ => Err(emit_usage_error(
+            "control",
+            "req-control",
+            "usage: avctl control <bind|unbind|list|status> [flags]",
+        )),
+    }
+}
+
+fn handle_template(_context: &CommandContext, args: &[String]) -> Result<(), ExitCode> {
+    match args {
+        [command, ..] if command == "list" => {
+            let capability = "template.list";
+            let request_id = "req-template-list";
+            let templates: Vec<serde_json::Value> = vec![];
+            print_response(
+                capability,
+                request_id,
+                "ok",
+                json!({"count": templates.len(), "templates": templates}),
+                vec![],
+                vec![],
+                vec![],
+            )
+        }
+        [command, rest @ ..] if command == "load" => {
+            let capability = "template.load";
+            let request_id = "req-template-load";
+            let template_id = required_flag(rest, "--template-id")
+                .map_err(|message| emit_error(capability, request_id, "CLI-500", message))?;
+            print_response(
+                capability,
+                request_id,
+                "ok",
+                json!({"template_id": template_id, "template": {}}),
+                vec![],
+                vec![],
+                vec![],
+            )
+        }
+        _ => Err(emit_usage_error(
+            "template",
+            "req-template",
+            "usage: avctl template <list|load> [flags]",
+        )),
+    }
+}
+
+fn handle_scene(_context: &CommandContext, args: &[String]) -> Result<(), ExitCode> {
+    match args {
+        [command, ..] if command == "list" => {
+            let capability = "scene.list";
+            let request_id = "req-scene-list";
+            let scenes: Vec<serde_json::Value> = vec![];
+            print_response(
+                capability,
+                request_id,
+                "ok",
+                json!({"count": scenes.len(), "scenes": scenes}),
+                vec![],
+                vec![],
+                vec![],
+            )
+        }
+        [command, rest @ ..] if command == "activate" => {
+            let capability = "scene.activate";
+            let request_id = "req-scene-activate";
+            let scene_id = required_flag(rest, "--scene-id")
+                .map_err(|message| emit_error(capability, request_id, "CLI-510", message))?;
+            print_response(
+                capability,
+                request_id,
+                "ok",
+                json!({"scene_id": scene_id, "status": "activated"}),
+                vec![],
+                vec![],
+                vec![],
+            )
+        }
+        _ => Err(emit_usage_error(
+            "scene",
+            "req-scene",
+            "usage: avctl scene <list|activate> [flags]",
         )),
     }
 }

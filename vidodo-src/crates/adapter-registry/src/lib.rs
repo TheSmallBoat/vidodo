@@ -2,6 +2,8 @@ use std::collections::BTreeMap;
 
 use vidodo_ir::{AdapterPluginManifest, BackendHealthSnapshot, HealthContract};
 
+pub mod example_audio_analyzer;
+pub mod example_visual_executor;
 pub mod loader;
 pub mod persistence;
 

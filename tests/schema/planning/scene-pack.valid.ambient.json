@@ -1,0 +1,45 @@
+{
+    "type": "scene_pack",
+    "pack_id": "pack-ambient-01",
+    "name": "Ambient Visuals",
+    "description": "Low-energy ambient scenes for intro and outro phases.",
+    "scenes": [
+        {
+            "scene_id": "scene-fog",
+            "label": "Fog Drift",
+            "asset_refs": [
+                "visual.program.fog-drift",
+                "audio.loop.pad-a"
+            ],
+            "visual_program_ref": "shader-fog-drift-v1",
+            "energy_range": [
+                0.0,
+                0.4
+            ],
+            "tags": [
+                "ambient",
+                "fog"
+            ]
+        },
+        {
+            "scene_id": "scene-star",
+            "label": "Starfield",
+            "asset_refs": [
+                "visual.program.starfield"
+            ],
+            "visual_program_ref": "shader-starfield-v1",
+            "energy_range": [
+                0.1,
+                0.5
+            ]
+        }
+    ],
+    "transition_strategy": {
+        "default_mode": "crossfade",
+        "crossfade_beats": 4.0
+    },
+    "tags": [
+        "ambient",
+        "intro"
+    ]
+}

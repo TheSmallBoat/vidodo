@@ -1,0 +1,10 @@
+{
+    "plugin_id": "example-visual-executor-v1",
+    "plugin_kind": "visual_executor",
+    "backend_kind": "visual",
+    "version": "0.1.0",
+    "capabilities": [
+        "scene_switch",
+        "shader_render"
+    ]
+}

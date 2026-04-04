@@ -1,0 +1,27 @@
+{
+    "type": "external_control_event",
+    "events": [
+        {
+            "source_id": "osc-controller-1",
+            "protocol": "osc",
+            "payload": {
+                "event_type": "OscMessage",
+                "address": "/fader/1",
+                "args": [
+                    0.75
+                ]
+            }
+        },
+        {
+            "source_id": "osc-controller-1",
+            "protocol": "osc",
+            "payload": {
+                "event_type": "OscMessage",
+                "address": "/button/1",
+                "args": [
+                    1.0
+                ]
+            }
+        }
+    ]
+}

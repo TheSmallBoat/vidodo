@@ -4,6 +4,8 @@ use vidodo_scheduler::lighting_backend::LightingReferenceBackend;
 use vidodo_scheduler::null_backend::NullBackendAdapter;
 use vidodo_scheduler::visual_backend::VisualReferenceBackend;
 
+use crate::example_visual_executor::ExampleVisualExecutor;
+
 /// Result of loading a single adapter plugin.
 pub struct LoadedAdapter {
     pub manifest: AdapterPluginManifest,
@@ -50,6 +52,7 @@ fn instantiate(
         "audio_output" => Ok(Box::new(AudioReferenceBackend::new(&manifest.plugin_id))),
         "visual_output" => Ok(Box::new(VisualReferenceBackend::new(&manifest.plugin_id))),
         "lighting_output" => Ok(Box::new(LightingReferenceBackend::new(&manifest.plugin_id))),
+        "visual_executor" => Ok(Box::new(ExampleVisualExecutor::new(&manifest.plugin_id))),
         unknown => Err(Box::new(Diagnostic::error(
             "LDR-001",
             format!("unknown plugin_kind '{}' for plugin '{}'", unknown, manifest.plugin_id),

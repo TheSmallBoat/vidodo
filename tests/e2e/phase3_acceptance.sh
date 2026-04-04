@@ -43,10 +43,10 @@ mcp="$repo_root/vidodo-src/target/debug/mcp-adapter"
 # ═══════════════════════════════════════════════════════════
 echo "=== Phase 3 Acceptance: CLI Adapter Lifecycle ==="
 
-# 1.1 System capabilities count = 29
+# 1.1 System capabilities count = 37
 cli_caps=$("$avctl" system capabilities 2>/dev/null)
 cli_cap_count=$(echo "$cli_caps" | python3 -c "import sys,json; print(json.load(sys.stdin).get('data',{}).get('count',0))" 2>/dev/null || echo "0")
-check "CLI system.capabilities returns 29" test "$cli_cap_count" = "29"
+check "CLI system.capabilities returns 37" test "$cli_cap_count" = "37"
 
 # 1.2 Adapter load from manifest
 cli_adapter_load=$("$avctl" adapter load --manifest "$adapter_manifest" 2>/dev/null)
@@ -197,10 +197,10 @@ cleanup_http() {
 }
 trap cleanup_http EXIT
 
-# 4.1 HTTP capability count = 29
+# 4.1 HTTP capability count = 37
 http_caps=$(curl -sf http://127.0.0.1:7400/capabilities 2>/dev/null || echo "{}")
 http_cap_count=$(echo "$http_caps" | python3 -c "import sys,json; print(len(json.load(sys.stdin).get('capabilities',[])))" 2>/dev/null || echo "0")
-check "HTTP /capabilities returns 29" test "$http_cap_count" = "29"
+check "HTTP /capabilities returns 37" test "$http_cap_count" = "37"
 
 # 4.2 HTTP adapter.load
 http_adapter_load=$(curl -sf -X POST http://127.0.0.1:7400/capability/adapter.load \
@@ -284,16 +284,16 @@ get_mcp_response() {
   done
 }
 
-# 5.1 MCP tools/list returns 29
+# 5.1 MCP tools/list returns 37
 mcp_tools=$(get_mcp_response 2)
 mcp_tool_count=$(echo "$mcp_tools" | python3 -c "import sys,json; print(len(json.load(sys.stdin)['result']['tools']))" 2>/dev/null || echo "0")
-check "MCP tools/list returns 29 tools" test "$mcp_tool_count" = "29"
+check "MCP tools/list returns 37 tools" test "$mcp_tool_count" = "37"
 
 # 5.2 MCP system.capabilities = 29
 mcp_caps=$(get_mcp_response 3)
 mcp_caps_text=$(echo "$mcp_caps" | python3 -c "import sys,json; r=json.load(sys.stdin)['result']; print(r['content'][0]['text'])" 2>/dev/null || echo "{}")
 mcp_cap_count=$(echo "$mcp_caps_text" | python3 -c "import sys,json; print(json.load(sys.stdin)['data']['count'])" 2>/dev/null || echo "0")
-check "MCP system.capabilities count=29" test "$mcp_cap_count" = "29"
+check "MCP system.capabilities count=37" test "$mcp_cap_count" = "37"
 
 # 5.3 MCP adapter.load = 3
 mcp_aload=$(get_mcp_response 4)
@@ -326,10 +326,10 @@ echo ""
 # ═══════════════════════════════════════════════════════════
 echo "=== Phase 3 Acceptance: Semantic Equivalence ==="
 
-check "Equivalence: capability count CLI=HTTP=MCP=29" \
-  test "$cli_cap_count" = "29" -a "$http_cap_count" = "29" -a "$mcp_cap_count" = "29"
+check "Equivalence: capability count CLI=HTTP=MCP=37" \
+  test "$cli_cap_count" = "37" -a "$http_cap_count" = "37" -a "$mcp_cap_count" = "37"
 
-check "Equivalence: MCP tool count = 29" test "$mcp_tool_count" = "29"
+check "Equivalence: MCP tool count = 37" test "$mcp_tool_count" = "37"
 
 check "Equivalence: adapter count CLI=HTTP after load" \
   test "$cli_adapter_count" = "$http_adapter_count"
@@ -347,7 +347,7 @@ echo "=== Phase 3 Acceptance: Artifact Integrity ==="
 # Schema fixture validation
 schema_result=$("$repo_root/scripts/schema-validate.sh" 2>&1)
 schema_count=$(echo "$schema_result" | grep -o '[0-9]*' | head -1)
-check "Schema validation: 89 fixtures pass" test "$schema_count" = "89"
+check "Schema validation: 101 fixtures pass" test "$schema_count" = "101"
 
 # Rust test count
 test_result=$(cd "$repo_root/vidodo-src" && cargo test --workspace --all-targets 2>&1 | grep 'test result:' | awk '{sum += $4} END {print sum}')
