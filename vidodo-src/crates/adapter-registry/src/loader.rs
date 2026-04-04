@@ -1,5 +1,8 @@
 use vidodo_ir::{AdapterPluginManifest, BackendAdapter, BackendDescription, Diagnostic};
+use vidodo_scheduler::audio_backend::AudioReferenceBackend;
+use vidodo_scheduler::lighting_backend::LightingReferenceBackend;
 use vidodo_scheduler::null_backend::NullBackendAdapter;
+use vidodo_scheduler::visual_backend::VisualReferenceBackend;
 
 /// Result of loading a single adapter plugin.
 pub struct LoadedAdapter {
@@ -41,9 +44,12 @@ fn instantiate(
     manifest: &AdapterPluginManifest,
 ) -> Result<Box<dyn BackendAdapter>, Box<Diagnostic>> {
     match manifest.plugin_kind.as_str() {
-        "null" | "null_backend" | "audio_output" | "visual_output" | "lighting_output" => {
+        "null" | "null_backend" => {
             Ok(Box::new(NullBackendAdapter::new(&manifest.plugin_id, &manifest.backend_kind)))
         }
+        "audio_output" => Ok(Box::new(AudioReferenceBackend::new(&manifest.plugin_id))),
+        "visual_output" => Ok(Box::new(VisualReferenceBackend::new(&manifest.plugin_id))),
+        "lighting_output" => Ok(Box::new(LightingReferenceBackend::new(&manifest.plugin_id))),
         unknown => Err(Box::new(Diagnostic::error(
             "LDR-001",
             format!("unknown plugin_kind '{}' for plugin '{}'", unknown, manifest.plugin_id),
@@ -136,5 +142,18 @@ mod tests {
         // NullBackendAdapter always starts as "idle", never "error"
         assert_eq!(ready.len(), 2);
         assert!(rejected.is_empty());
+    }
+
+    #[test]
+    fn reference_backends_report_correct_backend_kind() {
+        let manifests = vec![
+            manifest("a-ref", "audio_output", "audio"),
+            manifest("v-ref", "visual_output", "visual"),
+            manifest("l-ref", "lighting_output", "lighting"),
+        ];
+        let loaded = load_adapters(&manifests).unwrap();
+        assert_eq!(loaded[0].adapter.describe_backend().backend_kind, "audio");
+        assert_eq!(loaded[1].adapter.describe_backend().backend_kind, "visual");
+        assert_eq!(loaded[2].adapter.describe_backend().backend_kind, "lighting");
     }
 }

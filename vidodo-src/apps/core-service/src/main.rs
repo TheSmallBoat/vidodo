@@ -11,7 +11,8 @@ use axum::{
     routing::{get, post},
 };
 use serde_json::{Value, json};
-use vidodo_adapter_registry::AdapterRegistry;
+use vidodo_adapter_registry::loader::load_adapters;
+use vidodo_adapter_registry::persistence::PersistentAdapterRegistry;
 use vidodo_capability::{CapabilityRegistry, RouteTarget, route};
 use vidodo_compiler::compile_plan;
 use vidodo_compiler::revision::{archive_revision, publish_revision};
@@ -21,7 +22,7 @@ use vidodo_ir::{
     LivePatchProposal, PatchDecision, PlanBundle, ResponseEnvelope, SetPlan, VisualDsl,
 };
 use vidodo_patch_manager::{apply_patch, check_patch, deferred_rollback, rollback_patch};
-use vidodo_resource_hub::ResourceHubRegistry;
+use vidodo_resource_hub::persistence::PersistentHubRegistry;
 use vidodo_scheduler::{RunStatusRecord, simulate_run};
 use vidodo_storage::{
     ArtifactLayout, AssetIngestRequest, AssetQuery, discover_repo_root, get_asset, ingest_assets,
@@ -171,21 +172,41 @@ fn dispatch(
             ))
         }
         RouteTarget::SystemAdapters => {
-            let registry = AdapterRegistry::new();
-            Ok(ok_envelope(
-                capability,
-                request_id,
-                json!({"count": registry.list().len(), "adapters": registry.list()}),
-            ))
+            let db_path = state.layout.root.join("adapters.db");
+            match PersistentAdapterRegistry::open(&db_path) {
+                Ok(registry) => {
+                    let list = registry.list().unwrap_or_default();
+                    Ok(ok_envelope(
+                        capability,
+                        request_id,
+                        json!({"count": list.len(), "adapters": list}),
+                    ))
+                }
+                Err(e) => Err(err_str(capability, request_id, &e)),
+            }
         }
         RouteTarget::SystemHubs => {
-            let registry = ResourceHubRegistry::new();
-            Ok(ok_envelope(
-                capability,
-                request_id,
-                json!({"count": registry.list_hubs().len(), "hubs": registry.list_hubs()}),
-            ))
+            let db_path = state.layout.root.join("hubs.db");
+            match PersistentHubRegistry::open(&db_path) {
+                Ok(registry) => {
+                    let list = registry.list_hubs().unwrap_or_default();
+                    Ok(ok_envelope(
+                        capability,
+                        request_id,
+                        json!({"count": list.len(), "hubs": list}),
+                    ))
+                }
+                Err(e) => Err(err_str(capability, request_id, &e)),
+            }
         }
+        RouteTarget::AdapterLoad => dispatch_adapter_load(state, capability, request_id, body),
+        RouteTarget::AdapterShutdown => {
+            dispatch_adapter_shutdown(state, capability, request_id, body)
+        }
+        RouteTarget::AdapterStatus => dispatch_adapter_status(state, capability, request_id, body),
+        RouteTarget::HubRegister => dispatch_hub_register(state, capability, request_id, body),
+        RouteTarget::HubResolve => dispatch_hub_resolve(state, capability, request_id, body),
+        RouteTarget::HubStatus => dispatch_hub_status(state, capability, request_id, body),
     }
 }
 
@@ -861,6 +882,153 @@ fn default_assets_file(state: &AppState) -> Result<PathBuf, String> {
 }
 
 // ---------------------------------------------------------------------------
+// WSR-01 — adapter lifecycle handlers
+// ---------------------------------------------------------------------------
+
+fn dispatch_adapter_load(
+    state: &AppState,
+    capability: &str,
+    request_id: &str,
+    body: &Value,
+) -> Result<Value, Value> {
+    let manifest_path = require_str(body, "manifest_path")?;
+    let path = resolve(&state.repo_root, &manifest_path);
+    let raw = fs::read_to_string(&path)
+        .map_err(|e| err_str(capability, request_id, &format!("cannot read manifest: {e}")))?;
+    let manifests: Vec<vidodo_ir::AdapterPluginManifest> = serde_json::from_str(&raw)
+        .map_err(|e| err_str(capability, request_id, &format!("invalid manifest JSON: {e}")))?;
+    let loaded = load_adapters(&manifests)
+        .map_err(|d| error_envelope_str(capability, request_id, &d.code, &d.message))?;
+    let db_path = state.layout.root.join("adapters.db");
+    let registry = PersistentAdapterRegistry::open(&db_path)
+        .map_err(|e| err_str(capability, request_id, &e))?;
+    let mut loaded_ids = Vec::new();
+    for adapter in &loaded {
+        if let Err(e) = registry.register(&adapter.manifest)
+            && !e.contains("already registered")
+        {
+            return Err(err_str(capability, request_id, &e));
+        }
+        loaded_ids.push(adapter.manifest.plugin_id.clone());
+    }
+    Ok(ok_envelope(
+        capability,
+        request_id,
+        json!({"loaded_count": loaded_ids.len(), "adapters": loaded_ids}),
+    ))
+}
+
+fn dispatch_adapter_shutdown(
+    _state: &AppState,
+    capability: &str,
+    request_id: &str,
+    body: &Value,
+) -> Result<Value, Value> {
+    let plugin_id = require_str(body, "plugin_id")?;
+    // In this reference implementation, shutdown is a no-op that confirms the plugin_id.
+    // A real implementation would call adapter.shutdown_backend() and deregister.
+    Ok(ok_envelope(capability, request_id, json!({"plugin_id": plugin_id, "status": "shutdown"})))
+}
+
+fn dispatch_adapter_status(
+    state: &AppState,
+    capability: &str,
+    request_id: &str,
+    body: &Value,
+) -> Result<Value, Value> {
+    let plugin_id = require_str(body, "plugin_id")?;
+    let db_path = state.layout.root.join("adapters.db");
+    let registry = PersistentAdapterRegistry::open(&db_path)
+        .map_err(|e| err_str(capability, request_id, &e))?;
+    let manifest = registry.lookup(&plugin_id).map_err(|e| err_str(capability, request_id, &e))?;
+    Ok(ok_envelope(
+        capability,
+        request_id,
+        json!({"plugin_id": plugin_id, "manifest": manifest, "status": manifest.status}),
+    ))
+}
+
+// ---------------------------------------------------------------------------
+// WSR-02 — hub lifecycle handlers
+// ---------------------------------------------------------------------------
+
+fn dispatch_hub_register(
+    state: &AppState,
+    capability: &str,
+    request_id: &str,
+    body: &Value,
+) -> Result<Value, Value> {
+    let hub_id = require_str(body, "hub_id")?;
+    let resource_kind = require_str(body, "resource_kind")?;
+    let locator = require_str(body, "locator")?;
+    let provides: Vec<String> = body
+        .get("provides")
+        .and_then(Value::as_array)
+        .map(|a| a.iter().filter_map(Value::as_str).map(String::from).collect())
+        .unwrap_or_default();
+    let version = body.get("version").and_then(Value::as_str).unwrap_or("1.0.0").to_string();
+    let status = body.get("status").and_then(Value::as_str).unwrap_or("available").to_string();
+    let tags: Vec<String> = body
+        .get("tags")
+        .and_then(Value::as_array)
+        .map(|a| a.iter().filter_map(Value::as_str).map(String::from).collect())
+        .unwrap_or_default();
+    let descriptor = vidodo_ir::ResourceHubDescriptor {
+        hub_id: hub_id.clone(),
+        resource_kind,
+        version,
+        locator,
+        provides,
+        compatibility: None,
+        status: Some(status),
+        tags,
+    };
+    let db_path = state.layout.root.join("hubs.db");
+    let registry =
+        PersistentHubRegistry::open(&db_path).map_err(|e| err_str(capability, request_id, &e))?;
+    registry.register_hub(&descriptor).map_err(|e| err_str(capability, request_id, &e))?;
+    Ok(ok_envelope(capability, request_id, json!({"hub_id": hub_id, "status": "registered"})))
+}
+
+fn dispatch_hub_resolve(
+    state: &AppState,
+    capability: &str,
+    request_id: &str,
+    body: &Value,
+) -> Result<Value, Value> {
+    let resource_name = require_str(body, "resource_name")?;
+    let db_path = state.layout.root.join("hubs.db");
+    let registry =
+        PersistentHubRegistry::open(&db_path).map_err(|e| err_str(capability, request_id, &e))?;
+    let resolved = registry
+        .resolve_resource(&resource_name)
+        .map_err(|e| err_str(capability, request_id, &e))?;
+    Ok(ok_envelope(
+        capability,
+        request_id,
+        json!({"hub_id": resolved.hub_id, "locator": resolved.locator, "resource_kind": resolved.resource_kind}),
+    ))
+}
+
+fn dispatch_hub_status(
+    state: &AppState,
+    capability: &str,
+    request_id: &str,
+    body: &Value,
+) -> Result<Value, Value> {
+    let hub_id = require_str(body, "hub_id")?;
+    let db_path = state.layout.root.join("hubs.db");
+    let registry =
+        PersistentHubRegistry::open(&db_path).map_err(|e| err_str(capability, request_id, &e))?;
+    let descriptor = registry.lookup(&hub_id).map_err(|e| err_str(capability, request_id, &e))?;
+    Ok(ok_envelope(
+        capability,
+        request_id,
+        json!({"hub_id": hub_id, "descriptor": descriptor, "status": descriptor.status}),
+    ))
+}
+
+// ---------------------------------------------------------------------------
 // Envelope helpers
 // ---------------------------------------------------------------------------
 
@@ -926,6 +1094,10 @@ fn error_envelope_str(capability: &str, request_id: &str, code: &str, message: &
         vec![],
         vec![],
     )
+}
+
+fn err_str(capability: &str, request_id: &str, message: &str) -> Value {
+    error_envelope_str(capability, request_id, "SVC-100", message)
 }
 
 fn error_envelope(capability: &str, request_id: &str, diagnostics: Vec<Diagnostic>) -> Value {

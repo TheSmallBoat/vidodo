@@ -90,6 +90,12 @@ pub enum RouteTarget {
     SystemCapabilities,
     SystemAdapters,
     SystemHubs,
+    AdapterLoad,
+    AdapterShutdown,
+    AdapterStatus,
+    HubRegister,
+    HubResolve,
+    HubStatus,
 }
 
 /// Route a capability identifier to a typed target.
@@ -118,6 +124,12 @@ pub fn route(capability: &str) -> Result<RouteTarget, Box<Diagnostic>> {
         "system.capabilities" => Ok(RouteTarget::SystemCapabilities),
         "system.adapters" => Ok(RouteTarget::SystemAdapters),
         "system.hubs" => Ok(RouteTarget::SystemHubs),
+        "adapter.load" => Ok(RouteTarget::AdapterLoad),
+        "adapter.shutdown" => Ok(RouteTarget::AdapterShutdown),
+        "adapter.status" => Ok(RouteTarget::AdapterStatus),
+        "hub.register" => Ok(RouteTarget::HubRegister),
+        "hub.resolve" => Ok(RouteTarget::HubResolve),
+        "hub.status" => Ok(RouteTarget::HubStatus),
         _ => Err(Box::new(Diagnostic::error(
             "CAP-001",
             format!("unsupported capability: {capability}"),
@@ -190,6 +202,12 @@ pub fn mcp_tool_mappings() -> Vec<McpToolMapping> {
         mcp_map("system.capabilities", "system.capabilities", true, false),
         mcp_map("system.adapters", "system.adapters", true, false),
         mcp_map("system.hubs", "system.hubs", true, false),
+        mcp_map("adapter.load", "adapter.load", false, false),
+        mcp_map("adapter.shutdown", "adapter.shutdown", false, false),
+        mcp_map("adapter.status", "adapter.status", true, false),
+        mcp_map("hub.register", "hub.register", false, false),
+        mcp_map("hub.resolve", "hub.resolve", true, false),
+        mcp_map("hub.status", "hub.status", true, false),
     ]
 }
 
@@ -220,6 +238,12 @@ pub fn resolve_mcp_tool(tool_name: &str) -> Option<&'static str> {
         "system.capabilities" => Some("system.capabilities"),
         "system.adapters" => Some("system.adapters"),
         "system.hubs" => Some("system.hubs"),
+        "adapter.load" => Some("adapter.load"),
+        "adapter.shutdown" => Some("adapter.shutdown"),
+        "adapter.status" => Some("adapter.status"),
+        "hub.register" => Some("hub.register"),
+        "hub.resolve" => Some("hub.resolve"),
+        "hub.status" => Some("hub.status"),
         _ => None,
     }
 }
@@ -453,6 +477,30 @@ fn capability_schemas(capability: &str) -> (String, String) {
             r#"{"type":"object","properties":{"resource_kind":{"type":"string"}}}"#.into(),
             r#"{"type":"object","properties":{"count":{"type":"integer"},"hubs":{"type":"array","items":{"type":"object"}}}}"#.into(),
         ),
+        "adapter.load" => (
+            r#"{"type":"object","properties":{"manifest_path":{"type":"string"},"manifests":{"type":"array","items":{"type":"object"}}},"required":["manifest_path"]}"#.into(),
+            r#"{"type":"object","properties":{"loaded_count":{"type":"integer"},"adapters":{"type":"array","items":{"type":"object"}}}}"#.into(),
+        ),
+        "adapter.shutdown" => (
+            r#"{"type":"object","properties":{"plugin_id":{"type":"string"}},"required":["plugin_id"]}"#.into(),
+            r#"{"type":"object","properties":{"plugin_id":{"type":"string"},"status":{"type":"string"}}}"#.into(),
+        ),
+        "adapter.status" => (
+            r#"{"type":"object","properties":{"plugin_id":{"type":"string"}},"required":["plugin_id"]}"#.into(),
+            r#"{"type":"object","properties":{"plugin_id":{"type":"string"},"manifest":{"type":"object"},"status":{"type":"string"}}}"#.into(),
+        ),
+        "hub.register" => (
+            r#"{"type":"object","properties":{"hub_id":{"type":"string"},"resource_kind":{"type":"string"},"locator":{"type":"string"},"provides":{"type":"array","items":{"type":"string"}}},"required":["hub_id","resource_kind","locator"]}"#.into(),
+            r#"{"type":"object","properties":{"hub_id":{"type":"string"},"status":{"type":"string"}}}"#.into(),
+        ),
+        "hub.resolve" => (
+            r#"{"type":"object","properties":{"resource_name":{"type":"string"}},"required":["resource_name"]}"#.into(),
+            r#"{"type":"object","properties":{"hub_id":{"type":"string"},"locator":{"type":"string"},"resource_kind":{"type":"string"}}}"#.into(),
+        ),
+        "hub.status" => (
+            r#"{"type":"object","properties":{"hub_id":{"type":"string"}},"required":["hub_id"]}"#.into(),
+            r#"{"type":"object","properties":{"hub_id":{"type":"string"},"descriptor":{"type":"object"},"status":{"type":"string"}}}"#.into(),
+        ),
         _ => (String::new(), String::new()),
     }
 }
@@ -560,6 +608,42 @@ fn builtin_descriptors() -> Vec<CapabilityDescriptor> {
             "List registered adapter plugins",
         ),
         cap("system.hubs", "sync", "idempotent", &["operator"], "List registered resource hubs"),
+        cap(
+            "adapter.load",
+            "sync",
+            "conditional",
+            &["operator"],
+            "Load adapter plugins from manifests",
+        ),
+        cap(
+            "adapter.shutdown",
+            "sync",
+            "conditional",
+            &["operator"],
+            "Shut down an adapter plugin",
+        ),
+        cap(
+            "adapter.status",
+            "sync",
+            "idempotent",
+            &["operator"],
+            "Query a single adapter plugin status",
+        ),
+        cap("hub.register", "sync", "conditional", &["operator"], "Register a resource hub"),
+        cap(
+            "hub.resolve",
+            "sync",
+            "idempotent",
+            &["operator", "planner"],
+            "Resolve a resource reference through registered hubs",
+        ),
+        cap(
+            "hub.status",
+            "sync",
+            "idempotent",
+            &["operator"],
+            "Query a single resource hub status",
+        ),
     ]
 }
 
@@ -572,9 +656,9 @@ mod tests {
     use super::*;
 
     #[test]
-    fn default_registry_has_23_capabilities() {
+    fn default_registry_has_29_capabilities() {
         let registry = CapabilityRegistry::default();
-        assert_eq!(registry.len(), 23);
+        assert_eq!(registry.len(), 29);
     }
 
     #[test]
@@ -686,14 +770,14 @@ mod tests {
         let json = serde_json::to_string(registry.list()).expect("serialize");
         let deserialized: Vec<CapabilityDescriptor> =
             serde_json::from_str(&json).expect("deserialize");
-        assert_eq!(deserialized.len(), 23);
+        assert_eq!(deserialized.len(), 29);
         assert_eq!(deserialized[0].capability, "asset.ingest");
     }
 
     #[test]
-    fn mcp_tool_mappings_has_23_entries() {
+    fn mcp_tool_mappings_has_29_entries() {
         let mappings = mcp_tool_mappings();
-        assert_eq!(mappings.len(), 23);
+        assert_eq!(mappings.len(), 29);
         // Every mapping's capability should exist in the registry
         let registry = CapabilityRegistry::default();
         for m in &mappings {

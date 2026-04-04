@@ -8,9 +8,12 @@ use vidodo_ir::{
 pub mod audio_backend;
 pub mod clock;
 pub mod health_monitor;
+pub mod lighting_backend;
 pub mod lookahead;
 pub mod null_backend;
+pub mod reference_backend;
 pub mod show_state;
+pub mod visual_backend;
 
 /// Trait for dispatching events to audio and visual backends.
 ///

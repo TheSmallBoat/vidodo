@@ -5,7 +5,8 @@ use std::path::{Path, PathBuf};
 use std::process::ExitCode;
 
 use serde_json::{Value, json};
-use vidodo_adapter_registry::AdapterRegistry;
+use vidodo_adapter_registry::loader::load_adapters;
+use vidodo_adapter_registry::persistence::PersistentAdapterRegistry;
 use vidodo_capability::CapabilityRegistry;
 use vidodo_compiler::compile_plan;
 use vidodo_compiler::revision::{
@@ -17,8 +18,8 @@ use vidodo_ir::{
     LivePatchProposal, PatchDecision, PlanBundle, ResponseEnvelope, SetPlan, VisualDsl,
 };
 use vidodo_patch_manager::{apply_patch, check_patch, deferred_rollback, rollback_patch};
-use vidodo_resource_hub::ResourceHubRegistry;
-use vidodo_scheduler::{RunStatusRecord, simulate_run};
+use vidodo_resource_hub::persistence::PersistentHubRegistry;
+use vidodo_scheduler::{RunStatusRecord, simulate_run, simulate_run_with_backend};
 use vidodo_storage::{
     ArtifactLayout, AssetIngestRequest, AssetQuery, discover_repo_root, get_asset, ingest_assets,
     list_asset_analysis, list_asset_jobs, list_assets, list_compile_assets, read_json, slug,
@@ -66,7 +67,9 @@ fn run() -> Result<(), ExitCode> {
         "trace" => handle_trace(&context, &args[1..]),
         "eval" => handle_eval(&context, &args[1..]),
         "export" => handle_export(&context, &args[1..]),
-        "system" => handle_system(&args[1..]),
+        "system" => handle_system(&context, &args[1..]),
+        "adapter" => handle_adapter(&context, &args[1..]),
+        "hub" => handle_hub(&context, &args[1..]),
         _ => {
             print_usage();
             Err(ExitCode::from(2))
@@ -572,7 +575,13 @@ fn handle_run(context: &CommandContext, args: &[String]) -> Result<(), ExitCode>
             let compiled = load_revision(context, &show_id, revision)
                 .map_err(|message| emit_error(capability, request_id, "CLI-032", message))?;
             let run_id = deterministic_run_id(&show_id, revision);
-            let scheduled = simulate_run(&compiled, &run_id);
+            let backend_flag = optional_flag(rest, "--backend");
+            let scheduled = if backend_flag.as_deref() == Some("reference") {
+                let backend = vidodo_scheduler::reference_backend::ReferenceBackendClient::new();
+                simulate_run_with_backend(&compiled, &run_id, &backend)
+            } else {
+                simulate_run(&compiled, &run_id)
+            };
             let manifest = write_trace(
                 &context.layout,
                 &run_id,
@@ -993,7 +1002,7 @@ fn handle_eval(context: &CommandContext, args: &[String]) -> Result<(), ExitCode
     }
 }
 
-fn handle_system(args: &[String]) -> Result<(), ExitCode> {
+fn handle_system(context: &CommandContext, args: &[String]) -> Result<(), ExitCode> {
     match args {
         [command] if command == "capabilities" => {
             let capability = "system.capabilities";
@@ -1015,14 +1024,18 @@ fn handle_system(args: &[String]) -> Result<(), ExitCode> {
         [command] if command == "adapters" => {
             let capability = "system.adapters";
             let request_id = "req-system-adapters";
-            let registry = AdapterRegistry::new();
+            let db_path = context.layout.root.join("adapters.db");
+            let registry = PersistentAdapterRegistry::open(&db_path)
+                .map_err(|e| emit_error(capability, request_id, "SVC-100", e))?;
+            let list =
+                registry.list().map_err(|e| emit_error(capability, request_id, "SVC-100", e))?;
             print_response(
                 capability,
                 request_id,
                 "ok",
                 json!({
-                    "count": registry.list().len(),
-                    "adapters": registry.list()
+                    "count": list.len(),
+                    "adapters": list
                 }),
                 vec![],
                 vec![],
@@ -1032,14 +1045,19 @@ fn handle_system(args: &[String]) -> Result<(), ExitCode> {
         [command] if command == "hubs" => {
             let capability = "system.hubs";
             let request_id = "req-system-hubs";
-            let registry = ResourceHubRegistry::new();
+            let db_path = context.layout.root.join("hubs.db");
+            let registry = PersistentHubRegistry::open(&db_path)
+                .map_err(|e| emit_error(capability, request_id, "SVC-100", e))?;
+            let list = registry
+                .list_hubs()
+                .map_err(|e| emit_error(capability, request_id, "SVC-100", e))?;
             print_response(
                 capability,
                 request_id,
                 "ok",
                 json!({
-                    "count": registry.list_hubs().len(),
-                    "hubs": registry.list_hubs()
+                    "count": list.len(),
+                    "hubs": list
                 }),
                 vec![],
                 vec![],
@@ -1050,6 +1068,205 @@ fn handle_system(args: &[String]) -> Result<(), ExitCode> {
             "system",
             "req-system",
             "usage: avctl system <capabilities|adapters|hubs>",
+        )),
+    }
+}
+
+// ---------------------------------------------------------------------------
+// WSR-01 — adapter lifecycle CLI
+// ---------------------------------------------------------------------------
+
+fn handle_adapter(context: &CommandContext, args: &[String]) -> Result<(), ExitCode> {
+    match args {
+        [command, rest @ ..] if command == "load" => {
+            let capability = "adapter.load";
+            let request_id = "req-adapter-load";
+            let manifest_path = required_flag(rest, "--manifest")
+                .map_err(|message| emit_error(capability, request_id, "CLI-200", message))?;
+            let path = resolve_path(context, &manifest_path);
+            let raw = fs::read_to_string(&path).map_err(|e| {
+                emit_error(capability, request_id, "CLI-201", format!("cannot read manifest: {e}"))
+            })?;
+            let manifests: Vec<vidodo_ir::AdapterPluginManifest> = serde_json::from_str(&raw)
+                .map_err(|e| {
+                    emit_error(
+                        capability,
+                        request_id,
+                        "CLI-202",
+                        format!("invalid manifest JSON: {e}"),
+                    )
+                })?;
+            let loaded = load_adapters(&manifests).map_err(|d| {
+                let _ = print_response(
+                    capability,
+                    request_id,
+                    "error",
+                    json!({}),
+                    vec![*d],
+                    vec![],
+                    vec![],
+                );
+                ExitCode::from(1)
+            })?;
+            let db_path = context.layout.root.join("adapters.db");
+            let registry = PersistentAdapterRegistry::open(&db_path)
+                .map_err(|e| emit_error(capability, request_id, "CLI-203", e))?;
+            let mut loaded_ids = Vec::new();
+            for adapter in &loaded {
+                if let Err(e) = registry.register(&adapter.manifest)
+                    && !e.contains("already registered")
+                {
+                    return Err(emit_error(capability, request_id, "CLI-204", e));
+                }
+                loaded_ids.push(adapter.manifest.plugin_id.clone());
+            }
+            print_response(
+                capability,
+                request_id,
+                "ok",
+                json!({"loaded_count": loaded_ids.len(), "adapters": loaded_ids}),
+                vec![],
+                vec![],
+                vec![],
+            )
+        }
+        [command, rest @ ..] if command == "shutdown" => {
+            let capability = "adapter.shutdown";
+            let request_id = "req-adapter-shutdown";
+            let plugin_id = required_flag(rest, "--plugin-id")
+                .map_err(|message| emit_error(capability, request_id, "CLI-210", message))?;
+            print_response(
+                capability,
+                request_id,
+                "ok",
+                json!({"plugin_id": plugin_id, "status": "shutdown"}),
+                vec![],
+                vec![],
+                vec![],
+            )
+        }
+        [command, rest @ ..] if command == "status" => {
+            let capability = "adapter.status";
+            let request_id = "req-adapter-status";
+            let plugin_id = required_flag(rest, "--plugin-id")
+                .map_err(|message| emit_error(capability, request_id, "CLI-220", message))?;
+            let db_path = context.layout.root.join("adapters.db");
+            let registry = PersistentAdapterRegistry::open(&db_path)
+                .map_err(|e| emit_error(capability, request_id, "CLI-221", e))?;
+            let manifest = registry
+                .lookup(&plugin_id)
+                .map_err(|e| emit_error(capability, request_id, "CLI-222", e))?;
+            print_response(
+                capability,
+                request_id,
+                "ok",
+                json!({"plugin_id": plugin_id, "manifest": manifest, "status": manifest.status}),
+                vec![],
+                vec![],
+                vec![],
+            )
+        }
+        _ => Err(emit_usage_error(
+            "adapter",
+            "req-adapter",
+            "usage: avctl adapter <load|shutdown|status> [flags]",
+        )),
+    }
+}
+
+// ---------------------------------------------------------------------------
+// WSR-02 — hub lifecycle CLI
+// ---------------------------------------------------------------------------
+
+fn handle_hub(context: &CommandContext, args: &[String]) -> Result<(), ExitCode> {
+    match args {
+        [command, rest @ ..] if command == "register" => {
+            let capability = "hub.register";
+            let request_id = "req-hub-register";
+            let hub_id = required_flag(rest, "--hub-id")
+                .map_err(|message| emit_error(capability, request_id, "CLI-300", message))?;
+            let resource_kind = required_flag(rest, "--kind")
+                .map_err(|message| emit_error(capability, request_id, "CLI-301", message))?;
+            let locator = required_flag(rest, "--locator")
+                .map_err(|message| emit_error(capability, request_id, "CLI-302", message))?;
+            let provides: Vec<String> = rest
+                .iter()
+                .zip(rest.iter().skip(1))
+                .filter(|(k, _)| k.as_str() == "--provides")
+                .map(|(_, v)| v.clone())
+                .collect();
+            let descriptor = vidodo_ir::ResourceHubDescriptor {
+                hub_id: hub_id.clone(),
+                resource_kind,
+                version: String::from("1.0.0"),
+                locator,
+                provides,
+                compatibility: None,
+                status: Some(String::from("available")),
+                tags: Vec::new(),
+            };
+            let db_path = context.layout.root.join("hubs.db");
+            let registry = PersistentHubRegistry::open(&db_path)
+                .map_err(|e| emit_error(capability, request_id, "CLI-303", e))?;
+            registry
+                .register_hub(&descriptor)
+                .map_err(|e| emit_error(capability, request_id, "CLI-304", e))?;
+            print_response(
+                capability,
+                request_id,
+                "ok",
+                json!({"hub_id": hub_id, "status": "registered"}),
+                vec![],
+                vec![],
+                vec![],
+            )
+        }
+        [command, rest @ ..] if command == "resolve" => {
+            let capability = "hub.resolve";
+            let request_id = "req-hub-resolve";
+            let resource_name = required_flag(rest, "--resource")
+                .map_err(|message| emit_error(capability, request_id, "CLI-310", message))?;
+            let db_path = context.layout.root.join("hubs.db");
+            let registry = PersistentHubRegistry::open(&db_path)
+                .map_err(|e| emit_error(capability, request_id, "CLI-311", e))?;
+            let resolved = registry
+                .resolve_resource(&resource_name)
+                .map_err(|e| emit_error(capability, request_id, "CLI-312", e))?;
+            print_response(
+                capability,
+                request_id,
+                "ok",
+                json!({"hub_id": resolved.hub_id, "locator": resolved.locator, "resource_kind": resolved.resource_kind}),
+                vec![],
+                vec![],
+                vec![],
+            )
+        }
+        [command, rest @ ..] if command == "status" => {
+            let capability = "hub.status";
+            let request_id = "req-hub-status";
+            let hub_id = required_flag(rest, "--hub-id")
+                .map_err(|message| emit_error(capability, request_id, "CLI-320", message))?;
+            let db_path = context.layout.root.join("hubs.db");
+            let registry = PersistentHubRegistry::open(&db_path)
+                .map_err(|e| emit_error(capability, request_id, "CLI-321", e))?;
+            let descriptor = registry
+                .lookup(&hub_id)
+                .map_err(|e| emit_error(capability, request_id, "CLI-322", e))?;
+            print_response(
+                capability,
+                request_id,
+                "ok",
+                json!({"hub_id": hub_id, "descriptor": descriptor, "status": descriptor.status}),
+                vec![],
+                vec![],
+                vec![],
+            )
+        }
+        _ => Err(emit_usage_error(
+            "hub",
+            "req-hub",
+            "usage: avctl hub <register|resolve|status> [flags]",
         )),
     }
 }

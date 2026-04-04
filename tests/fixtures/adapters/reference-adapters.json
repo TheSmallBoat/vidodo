@@ -1,0 +1,68 @@
+[
+    {
+        "plugin_id": "ref-audio-1",
+        "plugin_kind": "audio_output",
+        "backend_kind": "audio",
+        "version": "1.0.0",
+        "capabilities": [
+            "play",
+            "stop",
+            "crossfade",
+            "gain"
+        ],
+        "target_topology_types": [
+            "stereo",
+            "spatial_speaker_matrix"
+        ],
+        "health_contract": {
+            "reports_ack": true,
+            "reports_status": true,
+            "supports_degrade_mode": false
+        },
+        "status": "ready"
+    },
+    {
+        "plugin_id": "ref-visual-1",
+        "plugin_kind": "visual_output",
+        "backend_kind": "visual",
+        "version": "1.0.0",
+        "capabilities": [
+            "scene_switch",
+            "shader_render",
+            "blend",
+            "uniform_update"
+        ],
+        "target_topology_types": [
+            "flat",
+            "spatial_multiview"
+        ],
+        "health_contract": {
+            "reports_ack": true,
+            "reports_status": true,
+            "supports_degrade_mode": false
+        },
+        "status": "ready"
+    },
+    {
+        "plugin_id": "ref-lighting-1",
+        "plugin_kind": "lighting_output",
+        "backend_kind": "lighting",
+        "version": "1.0.0",
+        "capabilities": [
+            "cue_fire",
+            "intensity_set",
+            "color_set",
+            "blackout"
+        ],
+        "target_topology_types": [
+            "dmx_universe",
+            "artnet_subnet"
+        ],
+        "health_contract": {
+            "reports_ack": true,
+            "reports_status": true,
+            "supports_degrade_mode": false
+        },
+        "status": "ready"
+    }
+]

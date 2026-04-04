@@ -43,10 +43,10 @@ mcp="$repo_root/vidodo-src/target/debug/mcp-adapter"
 # ═══════════════════════════════════════════════════════════
 echo "=== Phase 2 Acceptance: CLI Entry Point ==="
 
-# 1.1: system.capabilities returns 23
+# 1.1: system.capabilities returns 29
 cli_caps=$("$avctl" system capabilities 2>/dev/null)
 cli_cap_count=$(echo "$cli_caps" | python3 -c "import sys,json; d=json.load(sys.stdin); print(d.get('data',{}).get('count',0))" 2>/dev/null || echo "0")
-check "CLI system.capabilities returns 23" test "$cli_cap_count" = "23"
+check "CLI system.capabilities returns 29" test "$cli_cap_count" = "29"
 
 # 1.2: system.adapters endpoint is reachable (empty registry is valid)
 cli_adapters=$("$avctl" system adapters 2>/dev/null)
@@ -171,10 +171,10 @@ cleanup_http() {
 }
 trap cleanup_http EXIT
 
-# 2.1: HTTP capability count = 23
+# 2.1: HTTP capability count = 29
 http_caps=$(curl -sf http://127.0.0.1:7400/capabilities 2>/dev/null || echo "{}")
 http_cap_count=$(echo "$http_caps" | python3 -c "import sys,json; print(len(json.load(sys.stdin).get('capabilities',[])))" 2>/dev/null || echo "0")
-check "HTTP /capabilities returns 23" test "$http_cap_count" = "23"
+check "HTTP /capabilities returns 29" test "$http_cap_count" = "29"
 
 # 2.2: system.adapters via HTTP
 http_adapters=$(curl -sf -X POST http://127.0.0.1:7400/capability/system.adapters \
@@ -196,7 +196,7 @@ check "HTTP system.hubs count matches CLI" test "$http_hub_count" = "$cli_hub_co
 http_sys_caps=$(curl -sf -X POST http://127.0.0.1:7400/capability/system.capabilities \
   -H "Content-Type: application/json" -d '{}' 2>/dev/null || echo "{}")
 http_sys_cap_count=$(echo "$http_sys_caps" | python3 -c "import sys,json; print(json.load(sys.stdin).get('data',{}).get('count',0))" 2>/dev/null || echo "0")
-check "HTTP system.capabilities count=23" test "$http_sys_cap_count" = "23"
+check "HTTP system.capabilities count=29" test "$http_sys_cap_count" = "29"
 
 # 2.5: Compile + run pipeline
 http_compile=$(curl -sf -X POST http://127.0.0.1:7400/capability/compile.run \
@@ -280,16 +280,16 @@ mcp_init=$(get_mcp_response 1)
 check "MCP initialize returns protocolVersion" \
   test "$(echo "$mcp_init" | python3 -c "import sys,json; print(json.load(sys.stdin)['result']['protocolVersion'])")" = "2024-11-05"
 
-# 3.2: MCP tools/list returns 23
+# 3.2: MCP tools/list returns 29
 mcp_tools=$(get_mcp_response 2)
 mcp_tool_count=$(echo "$mcp_tools" | python3 -c "import sys,json; print(len(json.load(sys.stdin)['result']['tools']))")
-check "MCP tools/list returns 23 tools" test "$mcp_tool_count" = "23"
+check "MCP tools/list returns 29 tools" test "$mcp_tool_count" = "29"
 
-# 3.3: MCP system.capabilities returns 23
+# 3.3: MCP system.capabilities returns 29
 mcp_caps=$(get_mcp_response 3)
 mcp_caps_text=$(echo "$mcp_caps" | python3 -c "import sys,json; r=json.load(sys.stdin)['result']; print(r['content'][0]['text'])")
 mcp_cap_count=$(echo "$mcp_caps_text" | python3 -c "import sys,json; print(json.load(sys.stdin)['data']['count'])")
-check "MCP system.capabilities count=23" test "$mcp_cap_count" = "23"
+check "MCP system.capabilities count=29" test "$mcp_cap_count" = "29"
 
 # 3.4: MCP system.adapters succeeds
 mcp_adapters=$(get_mcp_response 4)
@@ -322,8 +322,8 @@ echo ""
 # ═══════════════════════════════════════════════════════════
 echo "=== Phase 2 Acceptance: Semantic Equivalence ==="
 
-check "Equivalence: capability count CLI=HTTP=MCP=23" \
-  test "$cli_cap_count" = "23" -a "$http_sys_cap_count" = "23" -a "$mcp_cap_count" = "23"
+check "Equivalence: capability count CLI=HTTP=MCP=29" \
+  test "$cli_cap_count" = "29" -a "$http_sys_cap_count" = "29" -a "$mcp_cap_count" = "29"
 
 check "Equivalence: adapter count CLI=HTTP=MCP" \
   test "$cli_adapter_count" = "$http_adapter_count" -a "$cli_adapter_count" = "$mcp_adapter_count"

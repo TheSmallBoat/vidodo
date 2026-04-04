@@ -96,17 +96,12 @@ impl BackendAdapter for AudioReferenceBackend {
             return Err(String::from("AUD-004: backend already shut down"));
         }
         match payload {
-            ExecutablePayload::Audio {
-                layer_id,
-                op,
-                target_asset_id,
-                gain_db,
-                ..
-            } => {
+            ExecutablePayload::Audio { layer_id, op, target_asset_id, gain_db, .. } => {
                 self.execute_count += 1;
                 let asset = target_asset_id.as_deref().unwrap_or("none");
                 let gain = gain_db.unwrap_or(0.0);
-                self.log.push(format!("execute: layer={layer_id} op={op} asset={asset} gain={gain}"));
+                self.log
+                    .push(format!("execute: layer={layer_id} op={op} asset={asset} gain={gain}"));
                 Ok(BackendAck {
                     backend: self.plugin_id.clone(),
                     target: layer_id.clone(),
