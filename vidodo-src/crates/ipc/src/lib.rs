@@ -10,4 +10,7 @@ pub mod resilience;
 pub mod scheduler_ipc;
 
 #[cfg(test)]
+mod integration_tests;
+
+#[cfg(test)]
 mod tests;

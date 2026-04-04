@@ -4,6 +4,7 @@
 //! and render pipeline types. Currently defines the abstraction layer; actual wgpu/winit
 //! dependencies are gated behind feature flags for future phases.
 
+pub mod backend;
 pub mod buffer_manager;
 pub mod camera_rig;
 pub mod device;
