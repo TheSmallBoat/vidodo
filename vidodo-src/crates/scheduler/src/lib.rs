@@ -13,6 +13,7 @@ pub mod lighting_backend;
 pub mod lookahead;
 pub mod null_backend;
 pub mod null_control_adapter;
+pub mod realtime_clock;
 pub mod reference_backend;
 pub mod scene_manager;
 pub mod show_state;

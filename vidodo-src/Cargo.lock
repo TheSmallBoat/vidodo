@@ -1091,6 +1091,15 @@ dependencies = [
 ]
 
 [[package]]
+name = "vidodo-audio-bridge"
+version = "0.1.0"
+dependencies = [
+ "serde",
+ "serde_json",
+ "vidodo-ir",
+]
+
+[[package]]
 name = "vidodo-capability"
 version = "0.1.0"
 dependencies = [
@@ -1124,11 +1133,29 @@ dependencies = [
 ]
 
 [[package]]
+name = "vidodo-ipc"
+version = "0.1.0"
+dependencies = [
+ "serde",
+ "serde_json",
+ "vidodo-ir",
+]
+
+[[package]]
 name = "vidodo-ir"
 version = "0.1.0"
 dependencies = [
  "serde",
  "serde_json",
+]
+
+[[package]]
+name = "vidodo-lighting-bridge"
+version = "0.1.0"
+dependencies = [
+ "serde",
+ "serde_json",
+ "vidodo-ir",
 ]
 
 [[package]]
@@ -1190,6 +1217,15 @@ dependencies = [
 name = "vidodo-validator"
 version = "0.1.0"
 dependencies = [
+ "vidodo-ir",
+]
+
+[[package]]
+name = "vidodo-visual-bridge"
+version = "0.1.0"
+dependencies = [
+ "serde",
+ "serde_json",
  "vidodo-ir",
 ]
 
