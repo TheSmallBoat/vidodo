@@ -15,7 +15,7 @@ The system accepts structured plans and live patches from humans or external age
 | Schema fixtures | 101 |
 | Crates | 12 |
 | Apps | 5 (avctl, core-service, mcp-adapter, visual-runtime, lighting-runtime) |
-| Showcase examples | 3 |
+| Showcase examples | 4 |
 | E2E regression suites | 10/10 |
 
 **Important**: The control plane (compile → schedule → patch → trace → evaluate) is fully real. Audio, visual, and lighting backends are currently deterministic simulations — no SuperCollider, no GPU/wgpu, no DMX hardware. See [实现状态矩阵](vidodo-docs/04-测试与工程执行/27-实现状态矩阵.md) for the full Real vs Mock assessment.
@@ -190,17 +190,20 @@ cd tests/e2e
 | `tests/` | Schema fixtures (101), E2E scripts (10 suites), controlled inputs |
 | `vidodo-src/` | Rust workspace — 12 crates, 5 apps, 256 tests |
 | `artifacts/` | Generated artifacts (traces, exports, revisions, analysis cache) |
-| `examples/` | Showcase examples (minimal-beat-show, ambient-drift, live-patch-demo) |
+| `examples/` | Showcase examples (minimal-beat-show, ambient-drift, live-patch-demo, full-showcase-comprehensive) |
 
-## Roadmap (Post Phase 4)
+## Phase 5 Roadmap (Real Runtime Implementation)
 
-1. **SuperCollider audio bridge** — Integrate scsynth via OSC (Document 13, Route 1)
-2. **wgpu visual rendering** — First GPU-backed visual pipeline with GLSL shader input
-3. **GLSL demo shader** — Showcase shader as first visible rendering deliverable
-4. **Python analysis pipeline** — Replace stub analyzers with librosa/essentia
-5. **DMX/ArtNet lighting output** — Real fixture control hardware integration
-6. **Real-time scheduler** — Wall-clock tick loop replacing offline simulation
-7. **Process separation** — IPC between core service and runtime processes
+Phase 5 replaces deterministic simulations with real backends. 34 task cards across 6 workstreams and 6 milestones (M24-M29). See [task cards](vidodo-docs/04-测试与工程执行/24-工作任务卡与开发里程碑.md) for full details.
+
+| Milestone | Workstream | Cards | Goal |
+|-----------|------------|-------|------|
+| M24 | Y: SuperCollider bridge | WSY-01~05 | OSC client + scsynth process management + BackendAdapter |
+| M25 | Z: wgpu visual rendering | WSZ-01~08 | GLSL→SPIR-V + render pipeline + particle shader + multi-viewport |
+| M26 | AA: Python analysis | WSAA-01~05 | librosa/essentia/music21 + Rust subprocess bridge |
+| M27 | AB: DMX/ArtNet lighting | WSAB-01~05 | DMX frames + ArtNet UDP + fixture topology + BackendAdapter |
+| M28 | AC: Real-time scheduler | WSAC-01~05 | Wall-clock MusicalClock + transport + realtime dispatch |
+| M29 | AD: Process separation | WSAD-01~06 | IPC messages + thread channels + causation tracing + resilience |
 
 ## License
 
