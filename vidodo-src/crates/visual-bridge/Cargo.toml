@@ -8,6 +8,7 @@ repository.workspace = true
 description = "wgpu-based visual rendering bridge for Vidodo visual runtime"
 
 [dependencies]
+glam = "0.29"
 naga = { version = "24", features = ["glsl-in", "spv-out"] }
 serde = { workspace = true }
 serde_json = { workspace = true }

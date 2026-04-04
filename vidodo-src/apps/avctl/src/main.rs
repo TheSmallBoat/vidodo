@@ -19,7 +19,10 @@ use vidodo_ir::{
 };
 use vidodo_patch_manager::{apply_patch, check_patch, deferred_rollback, rollback_patch};
 use vidodo_resource_hub::persistence::PersistentHubRegistry;
-use vidodo_scheduler::{RunStatusRecord, simulate_run, simulate_run_with_backend};
+use vidodo_scheduler::{
+    FakeBackendClient, RunStatusRecord, simulate_run, simulate_run_realtime,
+    simulate_run_with_backend,
+};
 use vidodo_storage::{
     ArtifactLayout, AssetIngestRequest, AssetQuery, discover_repo_root, get_asset, ingest_assets,
     list_asset_analysis, list_asset_jobs, list_assets, list_compile_assets, read_json, slug,
@@ -580,17 +583,43 @@ fn handle_run(context: &CommandContext, args: &[String]) -> Result<(), ExitCode>
                 .map_err(|message| emit_error(capability, request_id, "CLI-032", message))?;
             let run_id = deterministic_run_id(&show_id, revision);
             let backend_flag = optional_flag(rest, "--backend");
-            let scheduled = if backend_flag.as_deref() == Some("reference") {
-                let backend = vidodo_scheduler::reference_backend::ReferenceBackendClient::new();
-                simulate_run_with_backend(&compiled, &run_id, &backend)
-            } else {
-                simulate_run(&compiled, &run_id)
+            let lighting_backend_flag = optional_flag(rest, "--lighting-backend");
+            let mode_flag = optional_flag(rest, "--mode");
+            let mode_str = mode_flag.as_deref().unwrap_or("offline");
+            let scheduled = match (backend_flag.as_deref(), lighting_backend_flag.as_deref()) {
+                (_, Some("fixture-bus")) => {
+                    let backend =
+                        vidodo_scheduler::fixture_bus_backend::FixtureBusBackendClient::new();
+                    for diag in backend.diagnostics() {
+                        eprintln!("diag: {diag}");
+                    }
+                    simulate_run_with_backend(&compiled, &run_id, &backend)
+                }
+                (Some("reference"), _) => {
+                    let backend =
+                        vidodo_scheduler::reference_backend::ReferenceBackendClient::new();
+                    simulate_run_with_backend(&compiled, &run_id, &backend)
+                }
+                (Some("scsynth"), _) => {
+                    let backend = vidodo_scheduler::scsynth_backend::ScynthBackendClient::new();
+                    for diag in backend.diagnostics() {
+                        eprintln!("diag: {diag}");
+                    }
+                    simulate_run_with_backend(&compiled, &run_id, &backend)
+                }
+                _ => {
+                    if mode_str == "realtime" {
+                        simulate_run_realtime(&compiled, &run_id, &FakeBackendClient)
+                    } else {
+                        simulate_run(&compiled, &run_id)
+                    }
+                }
             };
             let manifest = write_trace(
                 &context.layout,
                 &run_id,
                 &compiled,
-                "offline",
+                mode_str,
                 &scheduled.summary,
                 &scheduled.final_show_state,
                 &scheduled.events,

@@ -454,6 +454,12 @@ dependencies = [
 ]
 
 [[package]]
+name = "glam"
+version = "0.29.3"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "8babf46d4c1c9d92deac9f7be466f76dfc4482b6452fc5024b5e8daf6ffeb3ee"
+
+[[package]]
 name = "half"
 version = "2.7.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -1329,8 +1335,10 @@ dependencies = [
  "criterion",
  "serde",
  "serde_json",
+ "vidodo-audio-bridge",
  "vidodo-compiler",
  "vidodo-ir",
+ "vidodo-lighting-bridge",
  "vidodo-patch-manager",
 ]
 
@@ -1369,6 +1377,7 @@ dependencies = [
 name = "vidodo-visual-bridge"
 version = "0.1.0"
 dependencies = [
+ "glam",
  "naga",
  "serde",
  "serde_json",

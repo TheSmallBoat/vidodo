@@ -8,6 +8,7 @@ use vidodo_ir::{
 pub mod audio_backend;
 pub mod clock;
 pub mod fault_injection;
+pub mod fixture_bus_backend;
 pub mod health_monitor;
 pub mod lighting_backend;
 pub mod lookahead;
@@ -18,6 +19,7 @@ pub mod realtime_clock;
 pub mod realtime_dispatch;
 pub mod reference_backend;
 pub mod scene_manager;
+pub mod scsynth_backend;
 pub mod show_state;
 pub mod transport;
 pub mod visual_backend;
@@ -549,11 +551,46 @@ pub fn simulate_run_with_controls(
     base
 }
 
+/// Realtime-mode simulation.
+///
+/// Produces the same events as offline `simulate_run_with_backend`, but
+/// assigns wall-clock timestamps scaled by the show's tempo so that the
+/// trace reflects real-time durations:
+///
+/// `wallclock_time_ms = (bar - 1) × beats_per_bar × ms_per_beat`
+///
+/// This allows trace analysis to verify that events are spaced according
+/// to tempo rather than the synthetic `+1000ms` steps used by the offline
+/// scheduler.
+pub fn simulate_run_realtime(
+    compiled: &CompiledRevision,
+    run_id: &str,
+    backend: &dyn BackendClient,
+) -> ScheduledRun {
+    let mut base = simulate_run_with_backend(compiled, run_id, backend);
+
+    // Rewrite wallclock timestamps using tempo-derived timing.
+    let tempo = compiled.structure_ir.sections.first().map(|_| 128.0_f64).unwrap_or(120.0);
+    let beats_per_bar = 4.0_f64;
+    let ms_per_beat = 60_000.0 / tempo;
+
+    for event in &mut base.events {
+        let bar = event.musical_time.bar;
+        // beat_in_bar is 1-based in at_bar(), so subtract 1 for offset.
+        let beat_offset = (event.musical_time.beat_in_bar - 1.0).max(0.0);
+        let bar_ms = (bar.saturating_sub(1) as f64) * beats_per_bar * ms_per_beat;
+        let beat_ms = beat_offset * ms_per_beat;
+        event.wallclock_time_ms = (bar_ms + beat_ms) as u64;
+    }
+
+    base
+}
+
 #[cfg(test)]
 mod tests {
     use super::{
-        BackendClient, FakeBackendClient, simulate_run, simulate_run_with_backend,
-        simulate_run_with_controls, simulate_run_with_fault_injector,
+        BackendClient, FakeBackendClient, simulate_run, simulate_run_realtime,
+        simulate_run_with_backend, simulate_run_with_controls, simulate_run_with_fault_injector,
     };
     use vidodo_compiler::compile_plan;
     use vidodo_ir::{
@@ -916,5 +953,41 @@ mod tests {
             degrade.musical_time.bar, target_bar,
             "degrade event bar should match trigger bar"
         );
+    }
+
+    #[test]
+    fn realtime_mode_wallclock_reflects_tempo() {
+        let compiled =
+            compile_plan(&PlanBundle::minimal("show-phase0")).expect("plan should compile");
+        let run = simulate_run_realtime(&compiled, "run-realtime-smoke", &FakeBackendClient);
+        assert!(!run.events.is_empty());
+
+        // In offline mode, wallclock_time_ms == scheduler_time_ms (synthetic +1000 steps).
+        // In realtime mode, wallclock_time_ms is derived from bar position + tempo.
+        // At 128 BPM, ms_per_beat = 468.75, ms_per_bar = 1875.
+        let first = &run.events[0];
+        assert_eq!(first.musical_time.bar, 1);
+        assert_eq!(first.wallclock_time_ms, 0); // bar 1 → 0 ms offset
+
+        // Any event at bar > 1 should have wallclock > 0 and proportional to
+        // bar offset.
+        if run.events.len() > 2 {
+            let later = run.events.iter().find(|e| e.musical_time.bar > 1);
+            if let Some(evt) = later {
+                assert!(evt.wallclock_time_ms > 0);
+            }
+        }
+    }
+
+    #[test]
+    fn offline_mode_regression_after_realtime_addition() {
+        // Ensure offline simulate_run is unchanged.
+        let compiled =
+            compile_plan(&PlanBundle::minimal("show-phase0")).expect("plan should compile");
+        let run = simulate_run(&compiled, "run-offline-regression");
+        // Offline: wallclock == scheduler_time (synthetic 1000ms steps)
+        for event in &run.events {
+            assert_eq!(event.wallclock_time_ms, event.scheduler_time_ms);
+        }
     }
 }

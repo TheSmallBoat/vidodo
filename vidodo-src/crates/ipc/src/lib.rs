@@ -6,6 +6,7 @@
 pub mod causation;
 pub mod channel;
 pub mod messages;
+pub mod resilience;
 pub mod scheduler_ipc;
 
 #[cfg(test)]
