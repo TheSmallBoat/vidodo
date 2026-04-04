@@ -6,6 +6,7 @@
 
 pub mod device;
 pub mod shader;
+pub mod shader_compiler;
 pub mod types;
 pub mod window;
 

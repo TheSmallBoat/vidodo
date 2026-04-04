@@ -145,6 +145,21 @@ impl RealtimeClock {
     pub fn tempo(&self) -> f64 {
         self.tempo
     }
+
+    /// Get the time signature.
+    pub fn time_signature(&self) -> [u32; 2] {
+        self.time_signature
+    }
+
+    /// Set the accumulated time directly (for seek support).
+    /// Only valid when the clock is stopped. Leaves clock in Paused state
+    /// so the position is visible via tick().
+    pub fn seek_to_ms(&mut self, ms: f64) {
+        self.accumulated_ms = ms;
+        if self.state == ClockState::Stopped {
+            self.state = ClockState::Paused;
+        }
+    }
 }
 
 /// Create a `RealtimeClock` and immediately derive a snapshot at a given

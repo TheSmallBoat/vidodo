@@ -1,5 +1,6 @@
 //! Vidodo artifact storage: layout, asset ingestion, and registry queries.
 
+pub mod analysis_bridge;
 pub mod artifact_layout;
 pub mod asset_ingest;
 pub mod query_registry;

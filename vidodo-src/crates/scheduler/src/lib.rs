@@ -17,6 +17,7 @@ pub mod realtime_clock;
 pub mod reference_backend;
 pub mod scene_manager;
 pub mod show_state;
+pub mod transport;
 pub mod visual_backend;
 
 /// Trait for dispatching events to audio and visual backends.

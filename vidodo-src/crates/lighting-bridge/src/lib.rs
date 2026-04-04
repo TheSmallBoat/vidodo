@@ -5,6 +5,7 @@
 
 pub mod artnet;
 pub mod dmx;
+pub mod fixture_topology;
 
 #[cfg(test)]
 mod tests;

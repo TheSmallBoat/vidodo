@@ -1,3 +1,4 @@
+click>=8.0
 librosa>=0.10
 essentia>=2.1b6
 music21>=9.1
