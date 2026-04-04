@@ -1,0 +1,47 @@
+{
+    "type": "set_plan",
+    "id": "set-ambient-drift",
+    "show_id": "ambient-drift",
+    "mode": "live",
+    "goal": {
+        "intent": "multi_section_ambient_showcase",
+        "duration_target_sec": 96,
+        "style_tags": [
+            "ambient",
+            "drift",
+            "visual-transition"
+        ]
+    },
+    "asset_pool_refs": [
+        "pool-ambient"
+    ],
+    "sections": [
+        {
+            "section_id": "intro",
+            "length_bars": 8,
+            "energy_target": 0.15,
+            "density_target": 0.1,
+            "visual_intent": "scene_fog"
+        },
+        {
+            "section_id": "body",
+            "length_bars": 16,
+            "energy_target": 0.5,
+            "density_target": 0.4,
+            "visual_intent": "scene_drift"
+        },
+        {
+            "section_id": "outro",
+            "length_bars": 8,
+            "energy_target": 0.1,
+            "density_target": 0.1,
+            "visual_intent": "scene_fadeout"
+        }
+    ],
+    "constraints_ref": "constraint-ambient",
+    "delivery": {
+        "render_bundle": false,
+        "trace_bundle": true,
+        "evaluation": false
+    }
+}

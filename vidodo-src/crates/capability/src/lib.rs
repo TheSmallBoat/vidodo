@@ -104,6 +104,8 @@ pub enum RouteTarget {
     TemplateLoad,
     SceneList,
     SceneActivate,
+    DemoList,
+    DemoRun,
 }
 
 /// Route a capability identifier to a typed target.
@@ -146,6 +148,8 @@ pub fn route(capability: &str) -> Result<RouteTarget, Box<Diagnostic>> {
         "template.load" => Ok(RouteTarget::TemplateLoad),
         "scene.list" => Ok(RouteTarget::SceneList),
         "scene.activate" => Ok(RouteTarget::SceneActivate),
+        "demo.list" => Ok(RouteTarget::DemoList),
+        "demo.run" => Ok(RouteTarget::DemoRun),
         _ => Err(Box::new(Diagnostic::error(
             "CAP-001",
             format!("unsupported capability: {capability}"),
@@ -232,6 +236,8 @@ pub fn mcp_tool_mappings() -> Vec<McpToolMapping> {
         mcp_map("template.load", "template.load", true, false),
         mcp_map("scene.list", "scene.list", true, false),
         mcp_map("scene.activate", "scene.activate", false, false),
+        mcp_map("demo.list", "demo.list", true, false),
+        mcp_map("demo.run", "demo.run", false, false),
     ]
 }
 
@@ -276,6 +282,8 @@ pub fn resolve_mcp_tool(tool_name: &str) -> Option<&'static str> {
         "template.load" => Some("template.load"),
         "scene.list" => Some("scene.list"),
         "scene.activate" => Some("scene.activate"),
+        "demo.list" => Some("demo.list"),
+        "demo.run" => Some("demo.run"),
         _ => None,
     }
 }
@@ -565,6 +573,14 @@ fn capability_schemas(capability: &str) -> (String, String) {
             r#"{"type":"object","properties":{"scene_id":{"type":"string"}},"required":["scene_id"]}"#.into(),
             r#"{"type":"object","properties":{"scene_id":{"type":"string"},"status":{"type":"string"}}}"#.into(),
         ),
+        "demo.list" => (
+            r#"{"type":"object","properties":{}}"#.into(),
+            r#"{"type":"object","properties":{"count":{"type":"integer"},"examples":{"type":"array"}}}"#.into(),
+        ),
+        "demo.run" => (
+            r#"{"type":"object","properties":{"name":{"type":"string"}},"required":["name"]}"#.into(),
+            r#"{"type":"object","properties":{"name":{"type":"string"},"timeline_entries":{"type":"integer"},"total_events":{"type":"integer"},"trace_path":{"type":"string"}}}"#.into(),
+        ),
         _ => (String::new(), String::new()),
     }
 }
@@ -752,6 +768,14 @@ fn builtin_descriptors() -> Vec<CapabilityDescriptor> {
             "List active scenes in runtime",
         ),
         cap("scene.activate", "sync", "conditional", &["operator"], "Activate a scene in runtime"),
+        cap(
+            "demo.list",
+            "sync",
+            "idempotent",
+            &["operator", "planner"],
+            "List built-in example shows",
+        ),
+        cap("demo.run", "sync", "conditional", &["operator"], "Run a built-in example end-to-end"),
     ]
 }
 
@@ -766,7 +790,7 @@ mod tests {
     #[test]
     fn default_registry_has_29_capabilities() {
         let registry = CapabilityRegistry::default();
-        assert_eq!(registry.len(), 37);
+        assert_eq!(registry.len(), 39);
     }
 
     #[test]
@@ -878,14 +902,14 @@ mod tests {
         let json = serde_json::to_string(registry.list()).expect("serialize");
         let deserialized: Vec<CapabilityDescriptor> =
             serde_json::from_str(&json).expect("deserialize");
-        assert_eq!(deserialized.len(), 37);
+        assert_eq!(deserialized.len(), 39);
         assert_eq!(deserialized[0].capability, "asset.ingest");
     }
 
     #[test]
     fn mcp_tool_mappings_has_29_entries() {
         let mappings = mcp_tool_mappings();
-        assert_eq!(mappings.len(), 37);
+        assert_eq!(mappings.len(), 39);
         // Every mapping's capability should exist in the registry
         let registry = CapabilityRegistry::default();
         for m in &mappings {

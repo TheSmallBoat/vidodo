@@ -1,0 +1,16 @@
+{
+    "locked_sections": [],
+    "max_audio_layers": 4,
+    "max_gpu_peak": 0.6,
+    "allow_hard_cut": false,
+    "allowed_patch_scopes": [
+        "next_phrase_boundary"
+    ],
+    "banned_assets": [],
+    "required_tags": [
+        "fixture"
+    ],
+    "delivery_requirements": {
+        "trace_bundle": true
+    }
+}

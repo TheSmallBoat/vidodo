@@ -1,0 +1,5 @@
+{
+    "pack_id": "ambient-drift",
+    "asset_namespace": "example.ambient",
+    "description": "Multi-section ambient show: intro → body → outro with visual transitions and lighting fades"
+}

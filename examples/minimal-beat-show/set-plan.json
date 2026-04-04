@@ -1,0 +1,39 @@
+{
+    "type": "set_plan",
+    "id": "set-minimal-beat",
+    "show_id": "minimal-beat-show",
+    "mode": "live",
+    "goal": {
+        "intent": "minimal_beat_driven_showcase",
+        "duration_target_sec": 64,
+        "style_tags": [
+            "beat-sync",
+            "visual-pulse"
+        ]
+    },
+    "asset_pool_refs": [
+        "pool-beat"
+    ],
+    "sections": [
+        {
+            "section_id": "intro",
+            "length_bars": 8,
+            "energy_target": 0.3,
+            "density_target": 0.2,
+            "visual_intent": "scene_pulse_low"
+        },
+        {
+            "section_id": "drop",
+            "length_bars": 8,
+            "energy_target": 0.8,
+            "density_target": 0.7,
+            "visual_intent": "scene_pulse_high"
+        }
+    ],
+    "constraints_ref": "constraint-beat-main",
+    "delivery": {
+        "render_bundle": false,
+        "trace_bundle": true,
+        "evaluation": false
+    }
+}

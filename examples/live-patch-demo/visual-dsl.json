@@ -1,0 +1,25 @@
+{
+    "type": "visual_dsl",
+    "id": "visual-patch-demo",
+    "show_id": "live-patch-demo",
+    "scenes": [
+        {
+            "scene_id": "scene_base",
+            "program_ref": "glsl/base-scene",
+            "output_backend": "fake_visual_backend",
+            "display_topology_ref": "flat-display-a",
+            "uniform_defaults": {
+                "tint": "blue"
+            }
+        },
+        {
+            "scene_id": "scene_active",
+            "program_ref": "glsl/active-scene",
+            "output_backend": "fake_visual_backend",
+            "display_topology_ref": "flat-display-a",
+            "uniform_defaults": {
+                "tint": "amber"
+            }
+        }
+    ]
+}

@@ -73,6 +73,7 @@ fn run() -> Result<(), ExitCode> {
         "control" => handle_control(&context, &args[1..]),
         "template" => handle_template(&context, &args[1..]),
         "scene" => handle_scene(&context, &args[1..]),
+        "demo" => handle_demo(&context, &args[1..]),
         _ => {
             print_usage();
             Err(ExitCode::from(2))
@@ -1420,6 +1421,117 @@ fn handle_scene(_context: &CommandContext, args: &[String]) -> Result<(), ExitCo
             "req-scene",
             "usage: avctl scene <list|activate> [flags]",
         )),
+    }
+}
+
+fn handle_demo(context: &CommandContext, args: &[String]) -> Result<(), ExitCode> {
+    let examples_dir = context.repo_root.join("examples");
+    match args {
+        [command, ..] if command == "list" => {
+            let capability = "demo.list";
+            let request_id = "req-demo-list";
+            let mut names: Vec<String> = Vec::new();
+            if examples_dir.is_dir() {
+                let entries = fs::read_dir(&examples_dir)
+                    .map_err(|e| emit_error(capability, request_id, "DEMO-001", e.to_string()))?;
+                for entry in entries.flatten() {
+                    if entry.path().is_dir()
+                        && let Some(name) = entry.file_name().to_str()
+                    {
+                        names.push(name.to_string());
+                    }
+                }
+            }
+            names.sort();
+            print_response(
+                capability,
+                request_id,
+                "ok",
+                json!({"count": names.len(), "examples": names}),
+                vec![],
+                vec![],
+                vec![],
+            )
+        }
+        [command, rest @ ..] if command == "run" => {
+            let capability = "demo.run";
+            let request_id = "req-demo-run";
+            let name = rest.first().cloned().ok_or_else(|| {
+                emit_error(
+                    capability,
+                    request_id,
+                    "CLI-600",
+                    String::from("usage: avctl demo run <name>"),
+                )
+            })?;
+            let plan_dir = examples_dir.join(&name);
+            if !plan_dir.is_dir() {
+                return Err(emit_error(
+                    capability,
+                    request_id,
+                    "DEMO-002",
+                    format!("example not found: {name}"),
+                ));
+            }
+            let assets_file = plan_dir.join("asset-records.json");
+            let bundle = load_plan_bundle(&plan_dir, &assets_file)
+                .map_err(|msg| emit_error(capability, request_id, "DEMO-003", msg))?;
+            let _show_id = bundle.show_id.clone();
+            // validate
+            let _report = validate_plan(&bundle);
+            // compile
+            let compiled = compile_plan(&bundle).map_err(|diagnostics| {
+                let _ = print_response(
+                    capability,
+                    request_id,
+                    "error",
+                    json!({}),
+                    diagnostics,
+                    vec![],
+                    vec![],
+                );
+                ExitCode::from(1)
+            })?;
+            let timeline_entries = compiled.timeline.len();
+            let revision = compiled.revision;
+            let _rev_record = register_candidate(&context.layout, &compiled)
+                .map_err(|msg| emit_error(capability, request_id, "DEMO-004", msg))?;
+            // run
+            let run_id = deterministic_run_id(&compiled.show_id, revision);
+            let scheduled = simulate_run(&compiled, &run_id);
+            let event_count = scheduled.summary.event_count;
+            // trace
+            let manifest = write_trace(
+                &context.layout,
+                &run_id,
+                &compiled,
+                "offline",
+                &scheduled.summary,
+                &scheduled.final_show_state,
+                &scheduled.events,
+                &scheduled.patch_decisions,
+                &scheduled.resource_samples,
+            )
+            .map_err(|msg| emit_error(capability, request_id, "DEMO-005", msg))?;
+            let trace_path = relative_to_repo(context, &manifest_path(&context.layout, &run_id));
+            print_response(
+                capability,
+                request_id,
+                "ok",
+                json!({
+                    "name": name,
+                    "timeline_entries": timeline_entries,
+                    "total_events": event_count,
+                    "revision": revision,
+                    "trace_bundle_id": manifest.trace_bundle_id,
+                    "trace_path": trace_path
+                }),
+                vec![],
+                vec![trace_path.clone()],
+                vec![],
+            )
+        }
+        _ => Err(emit_usage_error("demo", "req-demo", "usage: avctl demo <list|run> [name]")),
     }
 }
 

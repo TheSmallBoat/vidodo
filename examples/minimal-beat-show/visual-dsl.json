@@ -1,0 +1,27 @@
+{
+    "type": "visual_dsl",
+    "id": "visual-beat-main",
+    "show_id": "minimal-beat-show",
+    "scenes": [
+        {
+            "scene_id": "scene_pulse_low",
+            "program_ref": "glsl/pulse-low",
+            "output_backend": "fake_visual_backend",
+            "display_topology_ref": "flat-display-a",
+            "uniform_defaults": {
+                "tint": "blue",
+                "intensity": "0.4"
+            }
+        },
+        {
+            "scene_id": "scene_pulse_high",
+            "program_ref": "glsl/pulse-high",
+            "output_backend": "fake_visual_backend",
+            "display_topology_ref": "flat-display-a",
+            "uniform_defaults": {
+                "tint": "red",
+                "intensity": "1.0"
+            }
+        }
+    ]
+}

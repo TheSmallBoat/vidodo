@@ -1,0 +1,40 @@
+{
+    "type": "set_plan",
+    "id": "set-patch-demo",
+    "show_id": "live-patch-demo",
+    "mode": "live",
+    "goal": {
+        "intent": "live_patching_showcase",
+        "duration_target_sec": 64,
+        "style_tags": [
+            "patch",
+            "rollback",
+            "interactive"
+        ]
+    },
+    "asset_pool_refs": [
+        "pool-patch"
+    ],
+    "sections": [
+        {
+            "section_id": "intro",
+            "length_bars": 8,
+            "energy_target": 0.3,
+            "density_target": 0.2,
+            "visual_intent": "scene_base"
+        },
+        {
+            "section_id": "drop",
+            "length_bars": 8,
+            "energy_target": 0.7,
+            "density_target": 0.6,
+            "visual_intent": "scene_active"
+        }
+    ],
+    "constraints_ref": "constraint-patch-demo",
+    "delivery": {
+        "render_bundle": false,
+        "trace_bundle": true,
+        "evaluation": false
+    }
+}

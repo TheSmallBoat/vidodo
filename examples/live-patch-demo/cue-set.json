@@ -1,0 +1,22 @@
+[
+    {
+        "cue_set_id": "cue-patch-demo",
+        "topology_ref": "topo-patch-demo",
+        "entries": [
+            {
+                "source_ref": "intro",
+                "fixture_group": [
+                    "fx-front-wash"
+                ],
+                "intensity": 0.6,
+                "color": [
+                    0.2,
+                    0.3,
+                    0.8
+                ],
+                "fade_beats": 4.0,
+                "policy": "crossfade"
+            }
+        ]
+    }
+]

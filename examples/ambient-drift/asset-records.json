@@ -1,0 +1,42 @@
+[
+    {
+        "asset_id": "audio.loop.kick-a",
+        "asset_kind": "audio_loop",
+        "content_hash": "sha256:asset-kick-a",
+        "normalized_locator": "fixture://audio/loop-kick-a.wav",
+        "status": "published",
+        "tags": [
+            "fixture",
+            "rhythm"
+        ],
+        "warm_status": "warmed",
+        "readiness": "live_candidate"
+    },
+    {
+        "asset_id": "audio.loop.pad-a",
+        "asset_kind": "audio_loop",
+        "content_hash": "sha256:asset-pad-a",
+        "normalized_locator": "fixture://audio/loop-pad-a.wav",
+        "status": "published",
+        "tags": [
+            "fixture",
+            "texture"
+        ],
+        "warm_status": "warmed",
+        "readiness": "live_candidate"
+    },
+    {
+        "asset_id": "audio.loop.pad-b",
+        "asset_kind": "audio_loop",
+        "content_hash": "sha256:asset-pad-b",
+        "normalized_locator": "fixture://audio/loop-pad-b.wav",
+        "status": "published",
+        "tags": [
+            "fixture",
+            "texture",
+            "ambient"
+        ],
+        "warm_status": "warmed",
+        "readiness": "live_candidate"
+    }
+]

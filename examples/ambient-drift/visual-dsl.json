@@ -1,0 +1,37 @@
+{
+    "type": "visual_dsl",
+    "id": "visual-ambient-main",
+    "show_id": "ambient-drift",
+    "scenes": [
+        {
+            "scene_id": "scene_fog",
+            "program_ref": "glsl/ambient-fog",
+            "output_backend": "fake_visual_backend",
+            "display_topology_ref": "flat-display-a",
+            "uniform_defaults": {
+                "tint": "grey",
+                "density": "0.8"
+            }
+        },
+        {
+            "scene_id": "scene_drift",
+            "program_ref": "glsl/ambient-drift",
+            "output_backend": "fake_visual_backend",
+            "display_topology_ref": "flat-display-a",
+            "uniform_defaults": {
+                "tint": "teal",
+                "speed": "0.3"
+            }
+        },
+        {
+            "scene_id": "scene_fadeout",
+            "program_ref": "glsl/ambient-fadeout",
+            "output_backend": "fake_visual_backend",
+            "display_topology_ref": "flat-display-a",
+            "uniform_defaults": {
+                "tint": "black",
+                "opacity": "0.0"
+            }
+        }
+    ]
+}

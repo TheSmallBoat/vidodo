@@ -1,0 +1,69 @@
+{
+    "type": "audio_dsl",
+    "id": "audio-ambient-main",
+    "show_id": "ambient-drift",
+    "layers": [
+        {
+            "layer_id": "pad-layer",
+            "role": "texture",
+            "source_strategy": "fixed_asset",
+            "asset_candidates": [
+                "audio.loop.pad-a"
+            ],
+            "entry_rules": {
+                "section_refs": [
+                    "intro",
+                    "body"
+                ],
+                "quantize": "bar",
+                "max_simultaneous": 1
+            },
+            "output_backend_hint": "fake_audio_backend",
+            "route_group_ref": "stereo-main",
+            "automation": [
+                {
+                    "param": "gain_db",
+                    "curve": "linear",
+                    "from": -12.0,
+                    "to": -3.0,
+                    "duration_beats": 16
+                }
+            ]
+        },
+        {
+            "layer_id": "drift-layer",
+            "role": "texture",
+            "source_strategy": "fixed_asset",
+            "asset_candidates": [
+                "audio.loop.pad-b"
+            ],
+            "entry_rules": {
+                "section_refs": [
+                    "body",
+                    "outro"
+                ],
+                "quantize": "bar",
+                "max_simultaneous": 1
+            },
+            "output_backend_hint": "fake_audio_backend",
+            "route_group_ref": "stereo-main"
+        },
+        {
+            "layer_id": "kick-layer",
+            "role": "rhythm",
+            "source_strategy": "fixed_asset",
+            "asset_candidates": [
+                "audio.loop.kick-a"
+            ],
+            "entry_rules": {
+                "section_refs": [
+                    "body"
+                ],
+                "quantize": "bar",
+                "max_simultaneous": 1
+            },
+            "output_backend_hint": "fake_audio_backend",
+            "route_group_ref": "stereo-main"
+        }
+    ]
+}

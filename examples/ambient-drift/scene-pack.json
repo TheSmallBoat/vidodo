@@ -1,0 +1,33 @@
+{
+    "pack_id": "ambient-drift-scenes",
+    "show_id": "ambient-drift",
+    "scenes": [
+        {
+            "scene_id": "scene_fog",
+            "section_refs": [
+                "intro"
+            ],
+            "program_ref": "glsl/ambient-fog",
+            "transition": "crossfade",
+            "duration_bars": 8
+        },
+        {
+            "scene_id": "scene_drift",
+            "section_refs": [
+                "body"
+            ],
+            "program_ref": "glsl/ambient-drift",
+            "transition": "dissolve",
+            "duration_bars": 16
+        },
+        {
+            "scene_id": "scene_fadeout",
+            "section_refs": [
+                "outro"
+            ],
+            "program_ref": "glsl/ambient-fadeout",
+            "transition": "fade_to_black",
+            "duration_bars": 8
+        }
+    ]
+}

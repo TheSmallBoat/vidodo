@@ -1,0 +1,42 @@
+{
+    "type": "audio_dsl",
+    "id": "audio-patch-demo",
+    "show_id": "live-patch-demo",
+    "layers": [
+        {
+            "layer_id": "rhythm-main",
+            "role": "rhythm",
+            "source_strategy": "fixed_asset",
+            "asset_candidates": [
+                "audio.loop.kick-a"
+            ],
+            "entry_rules": {
+                "section_refs": [
+                    "intro",
+                    "drop"
+                ],
+                "quantize": "bar",
+                "max_simultaneous": 1
+            },
+            "output_backend_hint": "fake_audio_backend",
+            "route_group_ref": "stereo-main"
+        },
+        {
+            "layer_id": "texture-bed",
+            "role": "texture",
+            "source_strategy": "fixed_asset",
+            "asset_candidates": [
+                "audio.loop.pad-a"
+            ],
+            "entry_rules": {
+                "section_refs": [
+                    "drop"
+                ],
+                "quantize": "bar",
+                "max_simultaneous": 1
+            },
+            "output_backend_hint": "fake_audio_backend",
+            "route_group_ref": "stereo-main"
+        }
+    ]
+}

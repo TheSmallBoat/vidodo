@@ -1,0 +1,23 @@
+{
+    "topology_id": "topo-patch-demo",
+    "backend": "fake_lighting_backend",
+    "fixture_endpoints": [
+        {
+            "fixture_id": "fx-front-wash",
+            "role": "wash",
+            "device_ref": "node-a",
+            "universe": 1,
+            "address": 1,
+            "position": [
+                0.0,
+                3.0,
+                0.0
+            ],
+            "capabilities": [
+                "dimmer",
+                "rgb"
+            ],
+            "status": "available"
+        }
+    ]
+}

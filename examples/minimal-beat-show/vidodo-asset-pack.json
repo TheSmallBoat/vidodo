@@ -1,0 +1,5 @@
+{
+    "pack_id": "minimal-beat-show",
+    "asset_namespace": "example.beat",
+    "description": "Minimal beat-driven show: one kick loop, visual pulse, lighting sync"
+}

@@ -1,0 +1,5 @@
+{
+    "pack_id": "live-patch-demo",
+    "asset_namespace": "example.patch",
+    "description": "Live patch demonstration: apply a texture swap mid-show, then rollback"
+}

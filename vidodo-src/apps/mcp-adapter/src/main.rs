@@ -303,6 +303,8 @@ fn dispatch(
         RouteTarget::TemplateLoad => dispatch_template_load(state, capability, request_id, body),
         RouteTarget::SceneList => dispatch_scene_list(state, capability, request_id, body),
         RouteTarget::SceneActivate => dispatch_scene_activate(state, capability, request_id, body),
+        RouteTarget::DemoList => dispatch_demo_list(state, capability, request_id, body),
+        RouteTarget::DemoRun => dispatch_demo_run(state, capability, request_id, body),
     }
 }
 
@@ -1177,6 +1179,39 @@ fn dispatch_scene_activate(
     Ok(ok_envelope(capability, request_id, json!({"scene_id": scene_id, "status": "activated"})))
 }
 
+fn dispatch_demo_list(
+    state: &McpState,
+    capability: &str,
+    request_id: &str,
+    _body: &Value,
+) -> Result<Value, Value> {
+    let examples_dir = state.repo_root.join("examples");
+    let mut names: Vec<String> = Vec::new();
+    if examples_dir.is_dir()
+        && let Ok(entries) = std::fs::read_dir(&examples_dir)
+    {
+        for entry in entries.flatten() {
+            if entry.path().is_dir()
+                && let Some(name) = entry.file_name().to_str()
+            {
+                names.push(name.to_string());
+            }
+        }
+    }
+    names.sort();
+    Ok(ok_envelope(capability, request_id, json!({"count": names.len(), "examples": names})))
+}
+
+fn dispatch_demo_run(
+    _state: &McpState,
+    capability: &str,
+    request_id: &str,
+    body: &Value,
+) -> Result<Value, Value> {
+    let name = require_str(body, "name")?;
+    Ok(ok_envelope(capability, request_id, json!({"name": name, "status": "stub"})))
+}
+
 // ---------------------------------------------------------------------------
 // Envelope helpers
 // ---------------------------------------------------------------------------
@@ -1264,11 +1299,11 @@ mod tests {
     }
 
     #[test]
-    fn tools_list_returns_37_tools() {
+    fn tools_list_returns_39_tools() {
         let state = test_state();
         let result = handle_tools_list(&state);
         let tools = result["tools"].as_array().unwrap();
-        assert_eq!(tools.len(), 37, "expected 37 tools, got {}", tools.len());
+        assert_eq!(tools.len(), 39, "expected 39 tools, got {}", tools.len());
         for tool in tools {
             assert!(tool["name"].is_string(), "tool missing name");
             assert!(tool["description"].is_string(), "tool missing description");

@@ -1,0 +1,22 @@
+[
+    {
+        "cue_set_id": "cue-beat-sync",
+        "topology_ref": "topo-beat-minimal",
+        "entries": [
+            {
+                "source_ref": "intro",
+                "fixture_group": [
+                    "fx-front-wash"
+                ],
+                "intensity": 0.5,
+                "color": [
+                    0.2,
+                    0.4,
+                    1.0
+                ],
+                "fade_beats": 4.0,
+                "policy": "crossfade"
+            }
+        ]
+    }
+]
