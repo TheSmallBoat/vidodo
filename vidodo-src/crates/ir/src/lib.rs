@@ -692,6 +692,25 @@ pub struct PerformanceAction {
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub struct PerformanceIr {
     pub performance_actions: Vec<PerformanceAction>,
+    /// Beat positions (seconds) from audio analysis, if available.
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub beat_map: Vec<f64>,
+    /// Detected key from harmony analysis, if available.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub detected_key: Option<String>,
+    /// Section boundaries from analysis, if available.
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub section_boundaries: Vec<AnalysisSectionBoundary>,
+}
+
+/// A section boundary detected by audio analysis.
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+pub struct AnalysisSectionBoundary {
+    pub start_sec: f64,
+    pub end_sec: f64,
+    #[serde(default)]
+    pub label: String,
+    pub confidence: f64,
 }
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]

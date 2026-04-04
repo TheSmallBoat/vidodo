@@ -7,6 +7,7 @@ use vidodo_ir::{
 };
 use vidodo_validator::validate_plan;
 
+pub mod analysis_cache;
 pub mod revision;
 
 pub fn compile_plan(plan: &PlanBundle) -> Result<CompiledRevision, Vec<Diagnostic>> {
@@ -50,6 +51,31 @@ pub fn compile_plan(plan: &PlanBundle) -> Result<CompiledRevision, Vec<Diagnosti
         lighting_topology: plan.lighting_topology.clone(),
         cue_sets: plan.cue_sets.clone(),
     })
+}
+
+/// Compile with analysis cache enrichment.
+///
+/// Loads analysis hints from `cache_dir` for assets referenced in the plan,
+/// and injects `beat_map`, `detected_key`, and `section_boundaries` into the
+/// resulting `PerformanceIr`. Returns `(revision, warnings)`.
+pub fn compile_plan_with_analysis(
+    plan: &PlanBundle,
+    cache_dir: &std::path::Path,
+) -> Result<(CompiledRevision, Vec<Diagnostic>), Vec<Diagnostic>> {
+    let mut revision = compile_plan(plan)?;
+
+    // Collect asset IDs from audio layers
+    let asset_ids: Vec<String> =
+        plan.audio_dsl.layers.iter().filter_map(|l| l.asset_candidates.first().cloned()).collect();
+
+    let (hints_map, warnings) = analysis_cache::load_analysis_hints(cache_dir, &asset_ids);
+    let merged = analysis_cache::merge_hints(&hints_map);
+
+    revision.performance_ir.beat_map = merged.beat_map;
+    revision.performance_ir.detected_key = merged.detected_key;
+    revision.performance_ir.section_boundaries = merged.section_boundaries;
+
+    Ok((revision, warnings))
 }
 
 fn build_structure(plan: &PlanBundle) -> StructureIr {
@@ -132,7 +158,12 @@ fn build_performance(plan: &PlanBundle, structure: &StructureIr) -> PerformanceI
         }
     }
 
-    PerformanceIr { performance_actions }
+    PerformanceIr {
+        performance_actions,
+        beat_map: Vec::new(),
+        detected_key: None,
+        section_boundaries: Vec::new(),
+    }
 }
 
 fn build_visual(plan: &PlanBundle, structure: &StructureIr) -> VisualIr {

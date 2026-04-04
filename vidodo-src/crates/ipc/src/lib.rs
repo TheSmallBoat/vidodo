@@ -5,6 +5,7 @@
 
 pub mod channel;
 pub mod messages;
+pub mod scheduler_ipc;
 
 #[cfg(test)]
 mod tests;

@@ -4,7 +4,9 @@
 //! and server query functionality. The bridge translates Vidodo `AudioEvent`s into
 //! OSC commands that scsynth can execute.
 
+pub mod ack_collector;
 pub mod command_translator;
+pub mod health_monitor;
 pub mod node_mapping;
 pub mod osc;
 pub mod process_manager;
