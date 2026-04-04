@@ -19,4 +19,7 @@ pub mod viewport_composer;
 pub mod window;
 
 #[cfg(test)]
+mod particles_tests;
+
+#[cfg(test)]
 mod tests;

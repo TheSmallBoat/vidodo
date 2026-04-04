@@ -1,0 +1,43 @@
+{
+    "kernel_id": "particles-basic",
+    "vertex_shader": "particles.vert",
+    "fragment_shader": "particles.frag",
+    "uniforms": [
+        {
+            "name": "view_projection",
+            "uniform_type": "Mat4",
+            "offset": 0
+        },
+        {
+            "name": "time_params",
+            "uniform_type": "Vec4",
+            "offset": 64
+        },
+        {
+            "name": "particle_color",
+            "uniform_type": "Vec4",
+            "offset": 80
+        },
+        {
+            "name": "resolution",
+            "uniform_type": "Vec4",
+            "offset": 96
+        }
+    ],
+    "vertex_layout": {
+        "attributes": [
+            {
+                "location": 0,
+                "format": "Float32x3",
+                "name": "position"
+            },
+            {
+                "location": 1,
+                "format": "Float32x3",
+                "name": "velocity"
+            }
+        ],
+        "stride": 24
+    },
+    "blend_mode": "AlphaBlend"
+}
