@@ -9,6 +9,12 @@ pub type CorrelationId = String;
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct MessageEnvelope {
     pub correlation_id: CorrelationId,
+    /// Unique identifier for this specific message hop.
+    #[serde(default)]
+    pub message_id: String,
+    /// Parent message that caused this message (for causal chains).
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub parent_id: Option<String>,
     pub timestamp_ms: u64,
     pub payload: RuntimeMessage,
 }

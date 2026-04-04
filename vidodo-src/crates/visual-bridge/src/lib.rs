@@ -7,10 +7,12 @@
 pub mod buffer_manager;
 pub mod device;
 pub mod render_pipeline;
+pub mod scene_controller;
 pub mod shader;
 pub mod shader_compiler;
 pub mod types;
 pub mod uniform;
+pub mod uniform_automation;
 pub mod window;
 
 #[cfg(test)]

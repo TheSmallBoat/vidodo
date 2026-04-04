@@ -3,6 +3,7 @@
 //! Defines the message envelope, runtime actions, and acknowledgment types
 //! used for communication between Vidodo runtime processes.
 
+pub mod causation;
 pub mod channel;
 pub mod messages;
 pub mod scheduler_ipc;

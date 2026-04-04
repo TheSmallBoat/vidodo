@@ -4,6 +4,7 @@
 //! and UDP sender abstraction for lighting fixtures.
 
 pub mod artnet;
+pub mod backend;
 pub mod cue_translator;
 pub mod dmx;
 pub mod fixture_topology;

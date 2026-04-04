@@ -5,6 +5,7 @@
 //! OSC commands that scsynth can execute.
 
 pub mod ack_collector;
+pub mod backend;
 pub mod command_translator;
 pub mod health_monitor;
 pub mod node_mapping;

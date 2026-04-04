@@ -6,6 +6,8 @@ mod ipc_tests {
     fn action_message_roundtrip() {
         let env = MessageEnvelope {
             correlation_id: "corr-001".into(),
+            message_id: String::from("msg-001"),
+            parent_id: None,
             timestamp_ms: 1000,
             payload: RuntimeMessage::Action { payload_json: r#"{"op":"play"}"#.into() },
         };
