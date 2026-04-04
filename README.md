@@ -1,90 +1,206 @@
 # vidodo
 
-Vidodo is a design-first repository for an externally planned audiovisual system.
+Vidodo is a deterministic audiovisual composition, compilation, and execution system driven by external planners.
 
-The project defines a deterministic system that accepts structured plans and live patches from humans or external agents, validates and compiles them into shared IR and timelines, and drives audio and visual runtimes for live execution or offline export.
+The system accepts structured plans and live patches from humans or external agents, validates and compiles them into shared IR and timelines, coordinates audio / visual / lighting runtimes, and produces traceable evidence of every decision.
 
 ## Repository Status
 
-- Current stage: design-first repository with a normalized Phase 0 execution baseline
-- Main contents: `vidodo-docs/` design documents, root-level `schemas/`, root-level `scripts/`, controlled `tests/fixtures/`, GitHub workflow templates, and a Rust workspace under `vidodo-src/`
-- Implementation status: `vidodo-src/` now carries the single Phase 0 mainline plus a minimal asset ingestion and analysis-cache loop via `avctl`
+**Phase 4 complete** — 112 task cards done, 24 milestones closed (M0-M23).
+
+| Metric | Value |
+|--------|-------|
+| Capabilities | 39 (CLI + HTTP + MCP) |
+| Rust tests | 256 |
+| Schema fixtures | 101 |
+| Crates | 12 |
+| Apps | 5 (avctl, core-service, mcp-adapter, visual-runtime, lighting-runtime) |
+| Showcase examples | 3 |
+| E2E regression suites | 10/10 |
+
+**Important**: The control plane (compile → schedule → patch → trace → evaluate) is fully real. Audio, visual, and lighting backends are currently deterministic simulations — no SuperCollider, no GPU/wgpu, no DMX hardware. See [实现状态矩阵](vidodo-docs/04-测试与工程执行/27-实现状态矩阵.md) for the full Real vs Mock assessment.
 
 ## Core Idea
 
-Vidodo is not positioned as an embedded LLM product, an open-ended AI music generator, or a DAW replacement.
-
-It is positioned as:
+Vidodo is not an LLM product, an AI music generator, or a DAW replacement.
 
 > A deterministic audiovisual composition, compilation, and execution system driven by external planners.
 
-That means:
+- Planners stay outside the system
+- The system validates, compiles, schedules, executes, traces, and rolls back
+- Offline and live execution share the same time semantics and artifact model
+- Audio and visual runtimes are coordinated through a unified adapter protocol
 
-- planners stay outside the system
-- the system focuses on validation, compilation, scheduling, execution, trace, and rollback
-- offline and live execution share the same time semantics and artifact model
-- audio and visual runtimes are coordinated through a common protocol rather than loose signal following
+## Quick Start
 
+```bash
+# Clone and build
+cd vidodo-src
+cargo build --workspace
 
-## Key Design Directions
+# Run quality gate
+cargo fmt --all --check
+cargo clippy --workspace --all-targets --all-features -- -D warnings
+cargo test --workspace --all-targets
+```
 
-- One product, two runtimes: Audio Runtime and Visual Runtime
-- External planning surface via CLI, files, API, or MCP
-- Shared capability model between CLI and MCP
-- Shared IR and timeline for both live and offline paths
-- Structured trace, replay, diagnostics, and bounded patch rollback
-- Design-first monorepo intended to evolve into a Rust + Python implementation
+## Operation Guide
 
-## Current Code Status
+All commands below run from `vidodo-src/`.
 
-The codebase is still early-stage, but the repository now has a real closed-loop baseline.
+### System Health
 
-- `schemas/` is the canonical schema root for Phase 0 artifacts
-- `scripts/schema-validate.sh` validates root schemas against controlled fixtures in `tests/schema/`
-- `scripts/init-artifact-store.sh` initializes the root artifact store, including raw/normalized asset layers and analysis cache directories
-- `tests/fixtures/` contains the controlled plan, asset, patch, and import fixtures used by the current loops
-- `tests/fixtures/imports/manifest-audio-pack/` is the formal sample asset pack fixture showing how `vidodo-asset-pack.json` travels with media files
-- `vidodo-src/apps/avctl` now exposes the operator flow for `asset ingest/list/show`, `plan validate`, `compile run`, `run start/status`, `patch check/submit/rollback`, `trace show/events`, and `doctor`
-- `asset ingest` now runs a local minimal WAV/PCM audio probe, persists probe-backed beat-track results into the analysis cache, rejects same-name `asset_id` collisions inside one `asset_kind` by default, and auto-loads `vidodo-asset-pack.json` from the source dir so asset packs can carry `asset_namespace` or per-file `asset_id_overrides` rules with the media itself
-- `plan validate` and `compile run` now materialize a compile snapshot from registry query results filtered to published `compile_ready` or `warmed` assets; they fall back to the controlled asset fixture only when the registry is empty
-- `vidodo-src/crates/ir`, `validator`, `compiler`, `scheduler`, `patch-manager`, `trace`, and `storage` implement the deterministic compile -> patch -> fake runtime -> trace loop
-- `vidodo-src/apps/core-service`, `mcp-adapter`, and `visual-runtime` remain deliberately deferred placeholders until this single mainline is exhausted
+```bash
+cargo run -p avctl -- doctor                    # Full system diagnostic
+cargo run -p avctl -- system capabilities       # List all 39 capabilities
+cargo run -p avctl -- system health             # Backend health status
+```
 
-## Canonical Roots
+### Asset Management
 
-- `vidodo-docs/`: source of truth for product boundary, architecture, task cards, and test strategy
-- `schemas/`: canonical JSON Schema root
-- `scripts/`: repository-level validation and artifact-store scripts
-- `tests/`: schema fixtures, controlled inputs, and end-to-end smoke scripts
-- `vidodo-src/`: Rust workspace implementing the current Phase 0 mainline
+```bash
+# Ingest a sample audio pack
+cargo run -p avctl -- asset ingest \
+  --source-dir ../tests/fixtures/imports/minimal-audio-pack \
+  --declared-kind audio_loop --tags fixture,smoke
 
-## Default Workflow
+cargo run -p avctl -- asset list                # List ingested assets
+cargo run -p avctl -- asset show <asset_id>     # Show asset details
+```
 
-Run from the repository root:
+### Plan → Compile → Run → Trace
 
-- `./scripts/schema-validate.sh`
-- `./scripts/init-artifact-store.sh`
-- `./tests/e2e/asset_ingest_smoke.sh`
+```bash
+# Validate a plan
+cargo run -p avctl -- plan validate --plan-file ../tests/fixtures/plans/show-phase0-minimal.json
 
-Run from `vidodo-src/`:
+# Compile plan to IR
+cargo run -p avctl -- compile run --plan-file ../tests/fixtures/plans/show-phase0-minimal.json
 
-- `cargo fmt --all`
-- `cargo fmt --all --check`
-- `cargo clippy --workspace --all-targets --all-features -- -D warnings`
-- `cargo test --workspace --all-targets`
-- `cargo audit`
-- `cargo bench --workspace`
-- `cargo xtask ci`
-- `cargo run -p avctl -- asset ingest --source-dir ../tests/fixtures/imports/minimal-audio-pack --declared-kind audio_loop --tags fixture,smoke`
-- `cargo run -p avctl -- doctor`
+# Run the show (deterministic offline simulation)
+cargo run -p avctl -- run start --show-id show-phase0-minimal --bars 8
 
-## Roadmap
+# Check run status
+cargo run -p avctl -- run status --show-id show-phase0-minimal
 
-1. Expand fixture and negative coverage from the current P0 schema set to the remaining schema catalog.
-2. Expand the minimal asset ingestion path from the current deterministic file-copy + cache-probe baseline to richer normalizers and analyzers.
-3. Harden scheduler resync, degraded mode, and trace detail around longer-running scenarios.
-4. Decide whether `core-service` should remain a library-driven local loop or split into a dedicated service.
-5. Only then widen MCP, lighting, and distributed deployment scope.
+# View trace
+cargo run -p avctl -- trace show --show-id show-phase0-minimal
+cargo run -p avctl -- trace events --show-id show-phase0-minimal --bar 1
+```
+
+### Live Patches
+
+```bash
+# Check a patch proposal
+cargo run -p avctl -- patch check --patch-file ../tests/fixtures/patches/patch-insert-pad.json
+
+# Submit (apply) a patch
+cargo run -p avctl -- patch submit --patch-file ../tests/fixtures/patches/patch-insert-pad.json
+
+# Rollback last patch
+cargo run -p avctl -- patch rollback --show-id show-phase0-minimal
+```
+
+### Revision Management
+
+```bash
+cargo run -p avctl -- revision list --show-id show-phase0-minimal
+cargo run -p avctl -- revision publish --show-id show-phase0-minimal --rev 1
+cargo run -p avctl -- revision archive --show-id show-phase0-minimal --rev 1
+```
+
+### Export
+
+```bash
+cargo run -p avctl -- export audio --show-id show-phase0-minimal --format wav
+```
+
+### Showcase Demos
+
+```bash
+# List available built-in examples
+cargo run -p avctl -- demo list
+
+# Run a demo (zero-intervention, end-to-end)
+cargo run -p avctl -- demo run minimal-beat-show
+cargo run -p avctl -- demo run ambient-drift
+cargo run -p avctl -- demo run live-patch-demo
+```
+
+### Templates & Scenes
+
+```bash
+cargo run -p avctl -- template list
+cargo run -p avctl -- template load --template-id <id>
+cargo run -p avctl -- scene list
+cargo run -p avctl -- scene activate --scene-id <id>
+```
+
+### External Control
+
+```bash
+cargo run -p avctl -- control status
+cargo run -p avctl -- control send --event-file <path>
+```
+
+### Adapter & Hub Management
+
+```bash
+cargo run -p avctl -- adapter load --plugin-path <path>
+cargo run -p avctl -- adapter status
+cargo run -p avctl -- adapter shutdown --adapter-id <id>
+cargo run -p avctl -- hub register --descriptor-file <path>
+cargo run -p avctl -- hub resolve --resource-uri <uri>
+cargo run -p avctl -- hub status
+```
+
+### HTTP API (core-service)
+
+```bash
+# Start the service
+cargo run -p core-service
+
+# Query capabilities
+curl http://localhost:3000/api/capabilities
+curl http://localhost:3000/api/capabilities/plan.validate
+```
+
+### Schema Validation (outside Rust)
+
+```bash
+cd ..  # repository root
+./scripts/schema-validate.sh        # Validate all 101 fixtures
+./scripts/init-artifact-store.sh    # Initialize artifact directories
+```
+
+### E2E Regression
+
+```bash
+cd tests/e2e
+./regression_suite.sh               # Run all 10 E2E suites
+```
+
+## Repository Structure
+
+| Directory | Purpose |
+|-----------|---------|
+| `vidodo-docs/` | Source of truth — product specs, architecture, task cards, test strategy |
+| `schemas/` | Canonical JSON Schema definitions (asset, IR, runtime events, patch, trace, etc.) |
+| `scripts/` | Repository-level validation and artifact store initialization |
+| `tests/` | Schema fixtures (101), E2E scripts (10 suites), controlled inputs |
+| `vidodo-src/` | Rust workspace — 12 crates, 5 apps, 256 tests |
+| `artifacts/` | Generated artifacts (traces, exports, revisions, analysis cache) |
+| `examples/` | Showcase examples (minimal-beat-show, ambient-drift, live-patch-demo) |
+
+## Roadmap (Post Phase 4)
+
+1. **SuperCollider audio bridge** — Integrate scsynth via OSC (Document 13, Route 1)
+2. **wgpu visual rendering** — First GPU-backed visual pipeline with GLSL shader input
+3. **GLSL demo shader** — Showcase shader as first visible rendering deliverable
+4. **Python analysis pipeline** — Replace stub analyzers with librosa/essentia
+5. **DMX/ArtNet lighting output** — Real fixture control hardware integration
+6. **Real-time scheduler** — Wall-clock tick loop replacing offline simulation
+7. **Process separation** — IPC between core service and runtime processes
 
 ## License
 

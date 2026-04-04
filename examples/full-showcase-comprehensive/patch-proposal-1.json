@@ -1,0 +1,24 @@
+{
+    "patch_id": "patch-texture-swap-climax",
+    "submitted_by": "showcase-operator",
+    "patch_class": "local_content",
+    "base_revision": 1,
+    "scope": {
+        "from_bar": 25,
+        "to_bar": 40,
+        "window": "next_phrase_boundary"
+    },
+    "intent": {
+        "goal": "swap_shimmer_texture_during_climax",
+        "reason": "demonstrate_live_content_replacement"
+    },
+    "changes": [
+        {
+            "op": "replace_asset",
+            "target": "texture-shimmer",
+            "from": "audio.loop.shimmer-a",
+            "to": "audio.loop.pad-b"
+        }
+    ],
+    "fallback_revision": 1
+}

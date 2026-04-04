@@ -1,0 +1,63 @@
+{
+    "type": "visual_dsl",
+    "id": "visual-showcase-main",
+    "show_id": "full-showcase-comprehensive",
+    "scenes": [
+        {
+            "scene_id": "scene_introduction",
+            "program_ref": "glsl/ambient-fog",
+            "output_backend": "fake_visual_backend",
+            "display_topology_ref": "flat-display-a",
+            "uniform_defaults": {
+                "tint": "grey-blue",
+                "density": "0.7",
+                "speed": "0.1"
+            }
+        },
+        {
+            "scene_id": "scene_rhythm",
+            "program_ref": "glsl/pulse-grid",
+            "output_backend": "fake_visual_backend",
+            "display_topology_ref": "flat-display-a",
+            "uniform_defaults": {
+                "tint": "warm-amber",
+                "pulse_rate": "1.0",
+                "grid_density": "4"
+            }
+        },
+        {
+            "scene_id": "scene_climax",
+            "program_ref": "glsl/particle-burst",
+            "output_backend": "fake_visual_backend",
+            "display_topology_ref": "flat-display-a",
+            "uniform_defaults": {
+                "tint": "white-hot",
+                "intensity": "0.95",
+                "particle_count": "2048",
+                "speed": "2.0"
+            }
+        },
+        {
+            "scene_id": "scene_tension",
+            "program_ref": "glsl/angular-void",
+            "output_backend": "fake_visual_backend",
+            "display_topology_ref": "flat-display-a",
+            "uniform_defaults": {
+                "tint": "desaturated-grey",
+                "distortion": "0.6",
+                "grain": "0.4"
+            }
+        },
+        {
+            "scene_id": "scene_resolution",
+            "program_ref": "glsl/sunset-warmth",
+            "output_backend": "fake_visual_backend",
+            "display_topology_ref": "flat-display-a",
+            "uniform_defaults": {
+                "tint": "warm-gold",
+                "bloom": "0.5",
+                "fade_rate": "0.3"
+            }
+        }
+    ]
+}

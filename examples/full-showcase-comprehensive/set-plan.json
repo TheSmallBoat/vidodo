@@ -1,0 +1,63 @@
+{
+    "type": "set_plan",
+    "id": "set-full-showcase",
+    "show_id": "full-showcase-comprehensive",
+    "mode": "live",
+    "goal": {
+        "intent": "maximum_capability_showcase",
+        "duration_target_sec": 224,
+        "style_tags": [
+            "comprehensive",
+            "showcase",
+            "multi-section",
+            "patched",
+            "controlled"
+        ]
+    },
+    "asset_pool_refs": [
+        "pool-showcase"
+    ],
+    "sections": [
+        {
+            "section_id": "ambient-build",
+            "length_bars": 16,
+            "energy_target": 0.2,
+            "density_target": 0.15,
+            "visual_intent": "scene_introduction"
+        },
+        {
+            "section_id": "rhythm-entry",
+            "length_bars": 8,
+            "energy_target": 0.45,
+            "density_target": 0.35,
+            "visual_intent": "scene_rhythm"
+        },
+        {
+            "section_id": "main-climax",
+            "length_bars": 16,
+            "energy_target": 0.85,
+            "density_target": 0.7,
+            "visual_intent": "scene_climax"
+        },
+        {
+            "section_id": "breakdown",
+            "length_bars": 8,
+            "energy_target": 0.3,
+            "density_target": 0.25,
+            "visual_intent": "scene_tension"
+        },
+        {
+            "section_id": "finale",
+            "length_bars": 8,
+            "energy_target": 0.6,
+            "density_target": 0.5,
+            "visual_intent": "scene_resolution"
+        }
+    ],
+    "constraints_ref": "constraint-showcase",
+    "delivery": {
+        "render_bundle": false,
+        "trace_bundle": true,
+        "evaluation": true
+    }
+}

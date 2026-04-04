@@ -1,0 +1,51 @@
+{
+    "pack_id": "showcase-scene-pack",
+    "show_id": "full-showcase-comprehensive",
+    "scenes": [
+        {
+            "scene_id": "scene_introduction",
+            "section_refs": [
+                "ambient-build"
+            ],
+            "program_ref": "glsl/ambient-fog",
+            "transition": "fade_to_black",
+            "duration_bars": 16
+        },
+        {
+            "scene_id": "scene_rhythm",
+            "section_refs": [
+                "rhythm-entry"
+            ],
+            "program_ref": "glsl/pulse-grid",
+            "transition": "crossfade",
+            "duration_bars": 8
+        },
+        {
+            "scene_id": "scene_climax",
+            "section_refs": [
+                "main-climax"
+            ],
+            "program_ref": "glsl/particle-burst",
+            "transition": "dissolve",
+            "duration_bars": 16
+        },
+        {
+            "scene_id": "scene_tension",
+            "section_refs": [
+                "breakdown"
+            ],
+            "program_ref": "glsl/angular-void",
+            "transition": "crossfade",
+            "duration_bars": 8
+        },
+        {
+            "scene_id": "scene_resolution",
+            "section_refs": [
+                "finale"
+            ],
+            "program_ref": "glsl/sunset-warmth",
+            "transition": "fade_to_black",
+            "duration_bars": 8
+        }
+    ]
+}

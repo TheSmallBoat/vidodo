@@ -1,0 +1,50 @@
+{
+    "type": "show_template",
+    "template_id": "showcase-template",
+    "show_id": "full-showcase-comprehensive",
+    "mode": "live",
+    "sections": [
+        {
+            "section_id": "ambient-build",
+            "order": 1,
+            "label": "Ambient Build",
+            "duration_bars": 16
+        },
+        {
+            "section_id": "rhythm-entry",
+            "order": 2,
+            "label": "Rhythm Entry",
+            "duration_bars": 8
+        },
+        {
+            "section_id": "main-climax",
+            "order": 3,
+            "label": "Main Climax",
+            "duration_bars": 16
+        },
+        {
+            "section_id": "breakdown",
+            "order": 4,
+            "label": "Breakdown",
+            "duration_bars": 8
+        },
+        {
+            "section_id": "finale",
+            "order": 5,
+            "label": "Finale",
+            "duration_bars": 8
+        }
+    ],
+    "default_params": {
+        "tempo_bpm": 120.0,
+        "time_signature": [
+            4,
+            4
+        ],
+        "style_tags": [
+            "comprehensive",
+            "showcase",
+            "production"
+        ]
+    }
+}

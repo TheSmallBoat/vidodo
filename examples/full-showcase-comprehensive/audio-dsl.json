@@ -1,0 +1,157 @@
+{
+    "type": "audio_dsl",
+    "id": "audio-showcase-main",
+    "show_id": "full-showcase-comprehensive",
+    "layers": [
+        {
+            "layer_id": "pad-ambient",
+            "role": "texture",
+            "source_strategy": "fixed_asset",
+            "asset_candidates": [
+                "audio.loop.pad-a",
+                "audio.loop.pad-b"
+            ],
+            "entry_rules": {
+                "section_refs": [
+                    "ambient-build",
+                    "rhythm-entry",
+                    "main-climax",
+                    "breakdown",
+                    "finale"
+                ],
+                "quantize": "bar",
+                "max_simultaneous": 1
+            },
+            "output_backend_hint": "fake_audio_backend",
+            "route_group_ref": "stereo-main",
+            "automation": [
+                {
+                    "param": "gain_db",
+                    "curve": "linear",
+                    "from": -18.0,
+                    "to": -6.0,
+                    "duration_beats": 32
+                }
+            ]
+        },
+        {
+            "layer_id": "kick-rhythm",
+            "role": "rhythm",
+            "source_strategy": "fixed_asset",
+            "asset_candidates": [
+                "audio.loop.kick-a"
+            ],
+            "entry_rules": {
+                "section_refs": [
+                    "rhythm-entry",
+                    "main-climax",
+                    "finale"
+                ],
+                "quantize": "bar",
+                "max_simultaneous": 1
+            },
+            "output_backend_hint": "fake_audio_backend",
+            "route_group_ref": "stereo-main",
+            "automation": [
+                {
+                    "param": "gain_db",
+                    "curve": "linear",
+                    "from": -6.0,
+                    "to": -3.0,
+                    "duration_beats": 8
+                }
+            ]
+        },
+        {
+            "layer_id": "bass-foundation",
+            "role": "bass",
+            "source_strategy": "fixed_asset",
+            "asset_candidates": [
+                "audio.loop.bass-a"
+            ],
+            "entry_rules": {
+                "section_refs": [
+                    "main-climax",
+                    "breakdown",
+                    "finale"
+                ],
+                "quantize": "bar",
+                "max_simultaneous": 1
+            },
+            "output_backend_hint": "fake_audio_backend",
+            "route_group_ref": "stereo-main"
+        },
+        {
+            "layer_id": "texture-shimmer",
+            "role": "texture",
+            "source_strategy": "fixed_asset",
+            "asset_candidates": [
+                "audio.loop.shimmer-a"
+            ],
+            "entry_rules": {
+                "section_refs": [
+                    "main-climax",
+                    "finale"
+                ],
+                "quantize": "bar",
+                "max_simultaneous": 1
+            },
+            "output_backend_hint": "fake_audio_backend",
+            "route_group_ref": "stereo-aux",
+            "automation": [
+                {
+                    "param": "gain_db",
+                    "curve": "exponential",
+                    "from": -12.0,
+                    "to": -3.0,
+                    "duration_beats": 16
+                }
+            ]
+        },
+        {
+            "layer_id": "fx-wash",
+            "role": "effects",
+            "source_strategy": "fixed_asset",
+            "asset_candidates": [
+                "audio.loop.fx-wash-a"
+            ],
+            "entry_rules": {
+                "section_refs": [
+                    "breakdown",
+                    "finale"
+                ],
+                "quantize": "bar",
+                "max_simultaneous": 1
+            },
+            "output_backend_hint": "fake_audio_backend",
+            "route_group_ref": "stereo-aux"
+        },
+        {
+            "layer_id": "lead-melody",
+            "role": "lead",
+            "source_strategy": "fixed_asset",
+            "asset_candidates": [
+                "audio.loop.lead-a",
+                "audio.loop.lead-b"
+            ],
+            "entry_rules": {
+                "section_refs": [
+                    "main-climax"
+                ],
+                "quantize": "bar",
+                "max_simultaneous": 1
+            },
+            "output_backend_hint": "fake_audio_backend",
+            "route_group_ref": "stereo-main",
+            "automation": [
+                {
+                    "param": "gain_db",
+                    "curve": "linear",
+                    "from": -9.0,
+                    "to": -3.0,
+                    "duration_beats": 16
+                }
+            ]
+        }
+    ]
+}

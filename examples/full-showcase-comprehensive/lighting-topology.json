@@ -1,0 +1,75 @@
+{
+    "topology_id": "topo-showcase-main",
+    "backend": "fake_lighting_backend",
+    "fixture_endpoints": [
+        {
+            "fixture_id": "fx-stage-wash-l",
+            "role": "wash",
+            "device_ref": "node-a",
+            "universe": 1,
+            "address": 1,
+            "position": [
+                -3.0,
+                3.0,
+                0.0
+            ],
+            "capabilities": [
+                "dimmer",
+                "rgb"
+            ],
+            "status": "available"
+        },
+        {
+            "fixture_id": "fx-stage-wash-r",
+            "role": "wash",
+            "device_ref": "node-a",
+            "universe": 1,
+            "address": 10,
+            "position": [
+                3.0,
+                3.0,
+                0.0
+            ],
+            "capabilities": [
+                "dimmer",
+                "rgb"
+            ],
+            "status": "available"
+        },
+        {
+            "fixture_id": "fx-spot-center",
+            "role": "spot",
+            "device_ref": "node-b",
+            "universe": 1,
+            "address": 20,
+            "position": [
+                0.0,
+                5.0,
+                -1.0
+            ],
+            "capabilities": [
+                "dimmer",
+                "rgb",
+                "gobo"
+            ],
+            "status": "available"
+        },
+        {
+            "fixture_id": "fx-effects-strobe",
+            "role": "strobe",
+            "device_ref": "node-b",
+            "universe": 1,
+            "address": 30,
+            "position": [
+                0.0,
+                4.0,
+                1.0
+            ],
+            "capabilities": [
+                "dimmer",
+                "strobe_rate"
+            ],
+            "status": "available"
+        }
+    ]
+}

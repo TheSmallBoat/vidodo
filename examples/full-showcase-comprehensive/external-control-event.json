@@ -1,0 +1,12 @@
+{
+    "event_type": "external_control",
+    "source_id": "midi-keyboard-1",
+    "protocol": "midi_cc",
+    "channel": 1,
+    "cc": 7,
+    "value": 100,
+    "target_layer": "pad-ambient",
+    "target_param": "gain_db",
+    "timestamp_bar": 5,
+    "timestamp_beat": 1
+}

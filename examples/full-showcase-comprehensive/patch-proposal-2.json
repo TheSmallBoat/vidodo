@@ -1,0 +1,24 @@
+{
+    "patch_id": "patch-lead-swap-finale",
+    "submitted_by": "showcase-operator",
+    "patch_class": "local_content",
+    "base_revision": 1,
+    "scope": {
+        "from_bar": 49,
+        "to_bar": 56,
+        "window": "section_boundary"
+    },
+    "intent": {
+        "goal": "swap_lead_for_finale_variation",
+        "reason": "demonstrate_section_boundary_patch_and_rollback"
+    },
+    "changes": [
+        {
+            "op": "replace_asset",
+            "target": "lead-melody",
+            "from": "audio.loop.lead-a",
+            "to": "audio.loop.lead-b"
+        }
+    ],
+    "fallback_revision": 1
+}
