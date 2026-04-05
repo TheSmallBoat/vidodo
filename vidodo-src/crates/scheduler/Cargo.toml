@@ -11,6 +11,7 @@ serde.workspace = true
 vidodo-audio-bridge = { path = "../audio-bridge" }
 vidodo-ir = { path = "../ir" }
 vidodo-lighting-bridge = { path = "../lighting-bridge" }
+vidodo-visual-bridge = { path = "../visual-bridge" }
 
 [dev-dependencies]
 criterion.workspace = true

@@ -584,10 +584,22 @@ fn handle_run(context: &CommandContext, args: &[String]) -> Result<(), ExitCode>
             let run_id = deterministic_run_id(&show_id, revision);
             let backend_flag = optional_flag(rest, "--backend");
             let lighting_backend_flag = optional_flag(rest, "--lighting-backend");
+            let visual_backend_flag = optional_flag(rest, "--visual-backend");
             let mode_flag = optional_flag(rest, "--mode");
             let mode_str = mode_flag.as_deref().unwrap_or("offline");
-            let scheduled = match (backend_flag.as_deref(), lighting_backend_flag.as_deref()) {
-                (_, Some("fixture-bus")) => {
+            let scheduled = match (
+                backend_flag.as_deref(),
+                lighting_backend_flag.as_deref(),
+                visual_backend_flag.as_deref(),
+            ) {
+                (_, _, Some("wgpu")) => {
+                    let backend = vidodo_scheduler::wgpu_backend::WgpuBackendClient::new();
+                    for diag in backend.diagnostics() {
+                        eprintln!("diag: {diag}");
+                    }
+                    simulate_run_with_backend(&compiled, &run_id, &backend)
+                }
+                (_, Some("fixture-bus"), _) => {
                     let backend =
                         vidodo_scheduler::fixture_bus_backend::FixtureBusBackendClient::new();
                     for diag in backend.diagnostics() {
@@ -595,12 +607,12 @@ fn handle_run(context: &CommandContext, args: &[String]) -> Result<(), ExitCode>
                     }
                     simulate_run_with_backend(&compiled, &run_id, &backend)
                 }
-                (Some("reference"), _) => {
+                (Some("reference"), _, _) => {
                     let backend =
                         vidodo_scheduler::reference_backend::ReferenceBackendClient::new();
                     simulate_run_with_backend(&compiled, &run_id, &backend)
                 }
-                (Some("scsynth"), _) => {
+                (Some("scsynth"), _, _) => {
                     let backend = vidodo_scheduler::scsynth_backend::ScynthBackendClient::new();
                     for diag in backend.diagnostics() {
                         eprintln!("diag: {diag}");

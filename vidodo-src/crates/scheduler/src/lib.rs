@@ -23,6 +23,7 @@ pub mod scsynth_backend;
 pub mod show_state;
 pub mod transport;
 pub mod visual_backend;
+pub mod wgpu_backend;
 
 /// Trait for dispatching events to audio and visual backends.
 ///

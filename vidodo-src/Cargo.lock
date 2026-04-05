@@ -1340,6 +1340,7 @@ dependencies = [
  "vidodo-ir",
  "vidodo-lighting-bridge",
  "vidodo-patch-manager",
+ "vidodo-visual-bridge",
 ]
 
 [[package]]
